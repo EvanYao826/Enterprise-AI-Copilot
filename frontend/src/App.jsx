@@ -1,0 +1,54 @@
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Chat from './pages/Chat';
+import Knowledge from './pages/Knowledge';
+import Header from './components/Header';
+import AdminLogin from './pages/admin/AdminLogin';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
+import KnowledgeManagement from './pages/admin/KnowledgeManagement';
+import QaLogManagement from './pages/admin/QaLogManagement';
+
+const Layout = () => {
+  const location = useLocation();
+  // Don't show header on login/register pages or admin pages
+  const showHeader = !['/login', '/register'].includes(location.pathname) && !location.pathname.startsWith('/admin');
+
+  return (
+    <>
+      {showHeader && <Header />}
+      <div className={showHeader ? 'main-content-with-header' : ''}>
+        <Outlet />
+      </div>
+    </>
+  );
+};
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* User Routes */}
+        <Route element={<Layout />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/knowledge" element={<Knowledge />} />
+        </Route>
+
+        {/* Admin Routes */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminDashboard />}>
+          <Route path="users" element={<UserManagement />} />
+          <Route path="knowledge" element={<KnowledgeManagement />} />
+          <Route path="logs" element={<QaLogManagement />} />
+          <Route index element={<Navigate to="/admin/users" replace />} />
+        </Route>
+
+        {/* Default Routes */}
+        <Route path="/" element={<Navigate to="/chat" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
