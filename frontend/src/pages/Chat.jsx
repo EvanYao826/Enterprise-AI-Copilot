@@ -46,9 +46,16 @@ export default function Chat() {
           <ul>
             {sources.map((s, i) => (
               <li key={i}>
-                <span className="source-link" onClick={() => window.open(`/knowledge?docId=${s.doc_id || s.docId}&page=${s.page}`, '_blank')}>
-                  📄 {s.doc || '相关文档'}
-                </span>
+                {/* 如果 source 字段是 URL，直接打开；否则跳转到内部知识库页面 */}
+                {s.source && (s.source.startsWith('http://') || s.source.startsWith('https://')) ? (
+                    <span className="source-link" onClick={() => window.open(s.source, '_blank')}>
+                      📄 {s.doc || s.doc_name || '相关文档'}
+                    </span>
+                ) : (
+                    <span className="source-link" onClick={() => window.open(`/knowledge?docId=${s.doc_id || s.docId}&page=${s.page}`, '_blank')}>
+                      📄 {s.doc || s.doc_name || '相关文档'}
+                    </span>
+                )}
               </li>
             ))}
           </ul>

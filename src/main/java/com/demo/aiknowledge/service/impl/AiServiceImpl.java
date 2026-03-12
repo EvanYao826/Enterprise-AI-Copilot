@@ -96,7 +96,14 @@ public class AiServiceImpl implements AiService {
                 Map<String, Object> body = response.getBody();
                 aiResponse.setAnswer((String) body.get("answer"));
                 if (body.containsKey("sources")) {
-                    aiResponse.setSources((List<Map<String, Object>>) body.get("sources"));
+                    List<Map<String, Object>> sources = (List<Map<String, Object>>) body.get("sources");
+                    // 确保每个 source map 中都有 doc 字段，用于前端显示
+                    for (Map<String, Object> source : sources) {
+                        if (!source.containsKey("doc") && source.containsKey("doc_name")) {
+                            source.put("doc", source.get("doc_name"));
+                        }
+                    }
+                    aiResponse.setSources(sources);
                 }
             } else {
                 aiResponse.setAnswer("抱歉，AI 服务暂时不可用，请稍后再试。");

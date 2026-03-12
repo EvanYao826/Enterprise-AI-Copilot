@@ -84,7 +84,35 @@ async def ask_question(request: ChatRequest):
         answer = llm_service.get_answer(request.question, docs)
         
         # Extract sources for the response
-        sources = [doc.metadata.get("source") for doc in docs]
+        sources = []
+        seen_docs = set()
+        
+        for doc in docs:
+            source = doc.metadata.get("source")
+            doc_id = doc.metadata.get("doc_id")
+            
+            # 使用 source 或 doc_id 进行去重
+            unique_key = str(doc_id) if doc_id else source
+            if unique_key in seen_docs:
+                continue
+            seen_docs.add(unique_key)
+            
+            source_info = {
+                "source": source,
+                "doc_id": doc_id,
+                "page": doc.metadata.get("page")
+            }
+            # 尝试从 source 中提取文件名
+            if source_info["source"]:
+                source_info["doc_name"] = os.path.basename(source_info["source"])
+                # 如果是 URL，提取 URL 的文件名部分
+                if source_info["source"].startswith(('http://', 'https://')):
+                    source_info["doc_name"] = source_info["source"].split('/')[-1]
+                    # 移除 URL 参数（如果有）
+                    if '?' in source_info["doc_name"]:
+                         source_info["doc_name"] = source_info["doc_name"].split('?')[0]
+            
+            sources.append(source_info)
         
         return {"answer": answer, "sources": sources}
     except Exception as e:

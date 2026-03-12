@@ -60,6 +60,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 // Qiniu 文件路径 (URL)
                 // 确保 domain 结尾没有 /
                 String domain = qiniuDomain.endsWith("/") ? qiniuDomain.substring(0, qiniuDomain.length() - 1) : qiniuDomain;
+                // 强制添加协议头，如果未配置
+                if (!domain.startsWith("http://") && !domain.startsWith("https://")) {
+                    domain = "http://" + domain;
+                }
                 filePath = domain + "/" + savedFileName;
             } catch (IOException e) {
                 log.error("Qiniu upload failed", e);
@@ -123,9 +127,24 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             if (qiniuAccessKey != null && !qiniuAccessKey.isEmpty() && doc.getFilePath().startsWith("http")) {
                  try {
                      // 从 URL 中提取 key
-                     // 假设 URL 是 http://domain/key
+                     // URL: http://domain/key
                      String domain = qiniuDomain.endsWith("/") ? qiniuDomain.substring(0, qiniuDomain.length() - 1) : qiniuDomain;
-                     String key = doc.getFilePath().replace(domain + "/", "");
+                     // 确保 domain 和 filePath 中的协议头一致性处理
+                     // 这里为了稳健，直接找到第三个 / 之后的部分作为 Key (http://domain/key)
+                     String filePath = doc.getFilePath();
+                     String key = filePath;
+                     
+                     // 方法1：移除 domain 前缀
+                     // 需要处理 domain 可能没带协议头的情况
+                     String domainNoProtocol = domain.replace("http://", "").replace("https://", "");
+                     if (filePath.contains(domainNoProtocol)) {
+                         int index = filePath.indexOf(domainNoProtocol);
+                         // + domainNoProtocol.length() + 1 (for /)
+                         if (index + domainNoProtocol.length() + 1 < filePath.length()) {
+                             key = filePath.substring(index + domainNoProtocol.length() + 1);
+                         }
+                     }
+                     
                      deleteFromQiniu(key);
                  } catch (Exception e) {
                      log.error("Delete from Qiniu failed", e);

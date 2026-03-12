@@ -1,6 +1,5 @@
 import os
-import httpx
-import re
+import requests
 import tempfile
 from typing import List
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredMarkdownLoader
@@ -22,7 +21,7 @@ class DocumentParser:
         # 检测是否为 URL(支持带或不带协议头)
         is_url = file_path.startswith(('http://', 'https://')) or \
                  (not os.path.exists(file_path) and 
-                  re.match(r'^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/', file_path))
+                  ('clouddn.com' in file_path or 'aliyuncs.com' in file_path or '/' in file_path))
         temp_file = None
 
         try:
@@ -36,19 +35,29 @@ class DocumentParser:
                     if not download_url.startswith(('http://', 'https://')):
                         download_url = 'https://' + download_url
                     
-                    with httpx.Client() as client:
-                        response = client.get(download_url)
-                        response.raise_for_status()
-                        
-                        # 推断扩展名
-                        ext = os.path.splitext(file_path)[1].lower()
-                        if not ext:
-                            ext = '.txt' 
+                    response = requests.get(download_url, stream=True, timeout=30)
+                    response.raise_for_status()
+                    
+                    # 推断扩展名，优先从 URL 获取，如果没有则尝试从 Content-Type 或 Content-Disposition 获取
+                    # 简单起见，这里假设 URL 包含扩展名
+                    ext = os.path.splitext(file_path)[1].lower()
+                    if not ext:
+                        # 尝试从 Content-Type 推断
+                        content_type = response.headers.get('Content-Type', '').lower()
+                        if 'pdf' in content_type:
+                            ext = '.pdf'
+                        elif 'word' in content_type:
+                            ext = '.docx'
+                        elif 'markdown' in content_type:
+                            ext = '.md'
+                        else:
+                            ext = '.txt'
 
-                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-                        temp_file.write(response.content)
-                        temp_file.close()
-                        target_path = temp_file.name
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                    for chunk in response.iter_content(chunk_size=8192):
+                        temp_file.write(chunk)
+                    temp_file.close()
+                    target_path = temp_file.name
                 except Exception as e:
                     raise Exception(f"Failed to download file from URL: {e}")
             else:
@@ -75,5 +84,8 @@ class DocumentParser:
         finally:
             # 清理临时文件
             if temp_file and os.path.exists(temp_file.name):
-                os.unlink(temp_file.name)
+                try:
+                    os.unlink(temp_file.name)
+                except Exception:
+                    pass
 
