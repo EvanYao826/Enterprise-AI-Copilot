@@ -9,6 +9,8 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import KnowledgeManagement from './pages/admin/KnowledgeManagement';
 import QaLogManagement from './pages/admin/QaLogManagement';
+import Dashboard from './pages/admin/Dashboard';
+import NoticeManagement from './pages/admin/NoticeManagement';
 
 const Layout = () => {
   const location = useLocation();
@@ -40,10 +42,12 @@ export default function App() {
         {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="users" element={<UserManagement />} />
           <Route path="knowledge" element={<KnowledgeManagement />} />
           <Route path="logs" element={<QaLogManagement />} />
-          <Route index element={<Navigate to="/admin/users" replace />} />
+          <Route path="notices" element={<NoticeManagement />} />
         </Route>
 
         {/* Default Routes */}

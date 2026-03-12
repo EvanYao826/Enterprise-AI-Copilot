@@ -1,7 +1,9 @@
 package com.demo.aiknowledge.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.demo.aiknowledge.entity.DocViewLog;
 import com.demo.aiknowledge.entity.KnowledgeDoc;
+import com.demo.aiknowledge.mapper.DocViewLogMapper;
 import com.demo.aiknowledge.mapper.KnowledgeDocMapper;
 import com.demo.aiknowledge.service.AiService;
 import com.demo.aiknowledge.service.KnowledgeService;
@@ -23,6 +25,7 @@ import java.util.UUID;
 public class KnowledgeServiceImpl implements KnowledgeService {
 
     private final KnowledgeDocMapper knowledgeDocMapper;
+    private final DocViewLogMapper docViewLogMapper;
     private final AiService aiService;
 
     // 1. 从配置文件读取路径，默认值为 ./uploads (但建议配置文件中必须配绝对路径)
@@ -86,5 +89,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public void deleteDoc(Long docId) {
         knowledgeDocMapper.deleteById(docId);
         // TODO: 同时删除物理文件和向量数据库中的数据
+    }
+
+    @Override
+    public KnowledgeDoc viewDoc(Long docId, Long userId) {
+        KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
+        if (doc != null) {
+            DocViewLog log = new DocViewLog();
+            log.setDocId(docId);
+            log.setUserId(userId);
+            log.setCreateTime(LocalDateTime.now());
+            docViewLogMapper.insert(log);
+        }
+        return doc;
     }
 }

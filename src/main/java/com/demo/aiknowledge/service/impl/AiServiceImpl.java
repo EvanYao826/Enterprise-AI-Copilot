@@ -1,5 +1,6 @@
 package com.demo.aiknowledge.service.impl;
 
+import com.demo.aiknowledge.dto.AiResponse;
 import com.demo.aiknowledge.entity.Conversation;
 import com.demo.aiknowledge.entity.KnowledgeDoc;
 import com.demo.aiknowledge.mapper.ConversationMapper;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -72,8 +74,9 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
-    public String ask(String question, String context) {
+    public AiResponse ask(String question, String context) {
         log.info("User question: {}", question);
+        AiResponse aiResponse = new AiResponse();
         try {
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
@@ -91,14 +94,18 @@ public class AiServiceImpl implements AiService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
-                return (String) body.get("answer");
+                aiResponse.setAnswer((String) body.get("answer"));
+                if (body.containsKey("sources")) {
+                    aiResponse.setSources((List<Map<String, Object>>) body.get("sources"));
+                }
             } else {
-                return "抱歉，AI 服务暂时不可用，请稍后再试。";
+                aiResponse.setAnswer("抱歉，AI 服务暂时不可用，请稍后再试。");
             }
         } catch (Exception e) {
             log.error("AI QA failed", e);
-            return "抱歉，发生了一些错误，请稍后再试。";
+            aiResponse.setAnswer("抱歉，发生了一些错误，请稍后再试。");
         }
+        return aiResponse;
     }
 
     @Override

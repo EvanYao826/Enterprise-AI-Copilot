@@ -35,6 +35,106 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const renderSources = (sourcesJson) => {
+    if (!sourcesJson) return null;
+    try {
+      const sources = JSON.parse(sourcesJson);
+      if (!Array.isArray(sources) || sources.length === 0) return null;
+      return (
+        <div className="message-sources">
+          <h4>参考来源:</h4>
+          <ul>
+            {sources.map((s, i) => (
+              <li key={i}>
+                <span className="source-link" onClick={() => window.open(`/knowledge?docId=${s.doc_id || s.docId}&page=${s.page}`, '_blank')}>
+                  📄 {s.doc || '相关文档'} (第{s.page || 1}页)
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    } catch (e) {
+      console.error("Parse sources failed", e);
+      return null;
+    }
+  };
+
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpenId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleMenuClick = (id, e) => {
+    e.stopPropagation();
+    setMenuOpenId(menuOpenId === id ? null : id);
+  };
+
+  const handlePin = async (conv, e) => {
+    e.stopPropagation();
+    setMenuOpenId(null);
+    try {
+      await chatAPI.updateConversation(conv.id, { isPinned: !conv.isPinned });
+      loadConversations();
+    } catch (err) {
+      console.error('更新置顶失败', err);
+    }
+  };
+
+  const handleRenameStart = (conv, e) => {
+    e.stopPropagation();
+    setMenuOpenId(null);
+    setEditingId(conv.id);
+    setEditTitle(conv.title);
+  };
+
+  const handleRenameSave = async (id) => {
+    try {
+      await chatAPI.updateConversation(id, { title: editTitle });
+      setEditingId(null);
+      loadConversations();
+    } catch (err) {
+      console.error('重命名失败', err);
+    }
+  };
+
+  const handleRenameKeyDown = (e, id) => {
+    if (e.key === 'Enter') {
+      handleRenameSave(id);
+    } else if (e.key === 'Escape') {
+      setEditingId(null);
+    }
+  };
+
+  const handleDelete = async (id, e) => {
+    e.stopPropagation();
+    setMenuOpenId(null);
+    if (!window.confirm('确定删除此对话吗？')) return;
+
+    try {
+      await chatAPI.deleteConversation(id);
+      setConversations(conversations.filter(c => c.id !== id));
+      if (currentConversation?.id === id) {
+        setCurrentConversation(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error('删除会话失败:', err);
+    }
+  };
+
   const loadConversations = async () => {
     try {
       const response = await chatAPI.getConversations(userId);
@@ -134,10 +234,13 @@ export default function Chat() {
     <div className="chat-layout">
       {/* Sidebar */}
       <div className="chat-sidebar">
+        <div className="sidebar-logo" onClick={() => navigate('/')}>
+          <h2>🤖 AI Knowledge</h2>
+        </div>
+        
         <div className="sidebar-header">
-          <h2>AI 助手</h2>
-          <button className="btn btn-primary" onClick={handleCreateConversation}>
-            新建对话
+          <button className="new-chat-btn" onClick={handleCreateConversation}>
+            <span className="new-chat-icon">+</span> 新建对话
           </button>
         </div>
 
@@ -145,29 +248,56 @@ export default function Chat() {
           {conversations.map(conv => (
             <div
               key={conv.id}
-              className={`conversation-item ${currentConversation?.id === conv.id ? 'active' : ''}`}
+              className={`conversation-item ${currentConversation?.id === conv.id ? 'active' : ''} ${conv.isPinned ? 'pinned' : ''}`}
               onClick={() => setCurrentConversation(conv)}
             >
-              <div className="conversation-info">
-                <span className="conversation-title">{conv.title || '新对话'}</span>
-                <span className="conversation-time">
-                  {new Date(conv.createTime).toLocaleDateString()}
+              {editingId === conv.id ? (
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onBlur={() => handleRenameSave(conv.id)}
+                  onKeyDown={(e) => handleRenameKeyDown(e, conv.id)}
+                  autoFocus
+                  className="rename-input"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span className="conversation-title">
+                  {conv.isPinned && <span className="pin-icon">📌</span>}
+                  {conv.title || '新对话'}
                 </span>
-              </div>
+              )}
+              
               <button
-                className="delete-btn"
-                onClick={(e) => handleDeleteConversation(conv.id, e)}
+                className="menu-btn"
+                onClick={(e) => handleMenuClick(conv.id, e)}
               >
-                ×
+                •••
               </button>
+
+              {menuOpenId === conv.id && (
+                <div className="context-menu" ref={menuRef}>
+                  <div className="menu-item" onClick={(e) => handleRenameStart(conv, e)}>
+                    ✏️ 重命名
+                  </div>
+                  <div className="menu-item" onClick={(e) => handlePin(conv, e)}>
+                    {conv.isPinned ? '🚫 取消置顶' : '📌 置顶'}
+                  </div>
+                  <div className="menu-item delete" onClick={(e) => handleDelete(conv.id, e)}>
+                    🗑️ 删除
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
 
         <div className="sidebar-footer">
-          <button className="btn btn-default" onClick={handleLogout}>
-            退出登录
-          </button>
+          <div className="user-profile" onClick={handleLogout} title="点击退出登录">
+            <div className="user-avatar">👤</div>
+            <span>退出登录</span>
+          </div>
         </div>
       </div>
 
@@ -176,59 +306,73 @@ export default function Chat() {
         {currentConversation ? (
           <>
             <div className="chat-header">
-              <h3>{currentConversation.title || '新对话'}</h3>
+              {currentConversation.title || '新对话'}
             </div>
 
             <div className="messages-container">
               {messages.length === 0 ? (
-                <div className="empty-messages">
-                  <p>开始对话吧！</p>
+                <div className="welcome-screen">
+                  <div className="message-avatar" style={{width: 60, height: 60, fontSize: 32, marginBottom: 20}}>🤖</div>
+                  <h1>有什么我可以帮你的吗？</h1>
                 </div>
               ) : (
                 messages.map((msg, index) => (
-                  <div key={msg.id || index} className={`message ${msg.role}`}>
-                    <div className="message-avatar">
-                      {msg.role === 'user' ? '👤' : '🤖'}
-                    </div>
-                    <div className="message-content">
-                      {msg.content}
+                  <div key={msg.id || index} className={`message-row ${msg.role}`}>
+                    <div className="message-content-wrapper">
+                      <div className="message-avatar">
+                        {msg.role === 'user' ? '👤' : '🤖'}
+                      </div>
+                      <div className="message-body">
+                        {msg.content}
+                        {msg.role === 'assistant' && msg.sources && renderSources(msg.sources)}
+                      </div>
                     </div>
                   </div>
                 ))
               )}
               {loading && (
-                <div className="message assistant">
-                  <div className="message-avatar">🤖</div>
-                  <div className="message-content">
-                    <span className="typing">正在思考...</span>
+                <div className="message-row assistant">
+                  <div className="message-content-wrapper">
+                    <div className="message-avatar">🤖</div>
+                    <div className="message-body">
+                      <span className="typing">正在思考...</span>
+                    </div>
                   </div>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
-            <form className="chat-input-area" onSubmit={handleSendMessage}>
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="输入消息..."
-                disabled={loading}
-              />
-              <button type="submit" className="btn btn-primary" disabled={loading || !inputMessage.trim()}>
-                发送
-              </button>
-            </form>
+            <div className="input-container">
+              <div className="input-wrapper">
+                <form className="chat-input-area" onSubmit={handleSendMessage}>
+                  <textarea
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage(e);
+                      }
+                    }}
+                    placeholder="给 AI 发送消息..."
+                    disabled={loading}
+                    rows={1}
+                  />
+                  <button type="submit" className="send-btn" disabled={loading || !inputMessage.trim()}>
+                    ➤
+                  </button>
+                </form>
+              </div>
+            </div>
           </>
         ) : (
-          <div className="no-conversation">
-            <div className="welcome-content">
-              <h2>欢迎使用 AI 知识系统</h2>
-              <p>选择一个对话或创建新对话开始</p>
-              <button className="btn btn-primary" onClick={handleCreateConversation}>
-                创建新对话
-              </button>
-            </div>
+          <div className="welcome-screen">
+            <h1>欢迎使用 AI 知识系统</h1>
+            <p>基于 RAG 技术，为您提供精准的企业知识问答服务</p>
+            <button className="start-btn" onClick={handleCreateConversation}>
+              开始新对话
+            </button>
           </div>
         )}
       </div>

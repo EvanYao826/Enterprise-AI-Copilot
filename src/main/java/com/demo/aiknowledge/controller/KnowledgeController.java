@@ -31,4 +31,9 @@ public class KnowledgeController {
         knowledgeService.deleteDoc(id);
         return Result.success("Deleted successfully");
     }
+
+    @GetMapping("/view/{id}")
+    public Result<KnowledgeDoc> view(@PathVariable Long id, @RequestParam Long userId) {
+        return Result.success(knowledgeService.viewDoc(id, userId));
+    }
 }

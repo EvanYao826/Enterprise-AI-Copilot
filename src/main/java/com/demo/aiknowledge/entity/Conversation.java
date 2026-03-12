@@ -13,5 +13,6 @@ public class Conversation {
     private Long id;
     private Long userId;
     private String title;
+    private Boolean isPinned;
     private LocalDateTime createTime;
 }

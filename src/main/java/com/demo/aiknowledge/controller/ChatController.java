@@ -42,4 +42,9 @@ public class ChatController {
         chatService.deleteConversation(id);
         return Result.success("Conversation deleted");
     }
+
+    @PutMapping("/conversations/{id}")
+    public Result<Conversation> updateConversation(@PathVariable Long id, @RequestBody Conversation conversation) {
+        return Result.success(chatService.updateConversation(id, conversation.getTitle(), conversation.getIsPinned()));
+    }
 }
