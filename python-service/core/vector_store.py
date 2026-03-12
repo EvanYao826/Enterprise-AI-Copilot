@@ -60,6 +60,48 @@ class VectorStoreManager:
         
         return self.vector_store.similarity_search(query, k=k)
 
+    def delete_document(self, doc_id: int):
+        """
+        根据 doc_id 删除文档向量
+        注意：FAISS 不支持直接删除，通常需要重建索引。
+        这里使用一种变通方法：加载所有文档，过滤掉要删除的，然后重新构建索引。
+        这在数据量大时效率较低，但对于演示项目足够。
+        """
+        if self.vector_store is None:
+            return
+
+        # 这是一个简化的实现，实际上 FAISS 删除比较麻烦
+        # 如果使用的是内存中的 FAISS，可以通过重建来实现
+        # 1. 获取所有文档 (FAISS 不直接支持遍历所有文档，这是一个限制)
+        # 更好的做法是切换到 Chroma 或 Milvus 等支持删除的向量库
+        
+        # 针对 FAISS 的一种折中方案：
+        # 我们假设无法直接删除，只能在搜索时过滤 (filter)，或者清空重建。
+        # 为了真正删除，我们需要维护一个 doc_store 或者使用支持删除的 VectorStore
+        
+        # 这里为了演示，我们尝试重建索引（仅当 doc_store 可用时，但 FAISS 默认不持久化 doc_store）
+        # 由于 FAISS 的局限性，我们暂时打印日志，提示需要手动重建或切换向量库
+        print(f"Warning: FAISS implementation does not support efficient deletion by doc_id: {doc_id}")
+        print("To fully support deletion, consider using Chroma, Pinecone, or Milvus.")
+        
+        # 尝试通过 index_to_docstore_id 删除（如果可能）
+        try:
+            # 找到所有 metadata['doc_id'] == doc_id 的 ID
+            ids_to_delete = []
+            for doc_uuid, doc in self.vector_store.docstore._dict.items():
+                if doc.metadata.get('doc_id') == doc_id:
+                    ids_to_delete.append(doc_uuid)
+            
+            if ids_to_delete:
+                self.vector_store.delete(ids_to_delete)
+                self.vector_store.save_local(self.persist_directory)
+                print(f"Deleted {len(ids_to_delete)} chunks for doc_id {doc_id}")
+            else:
+                print(f"No chunks found for doc_id {doc_id}")
+                
+        except Exception as e:
+            print(f"Failed to delete document from FAISS: {e}")
+
     def delete_collection(self):
         """
         删除整个向量库 (慎用)

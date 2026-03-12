@@ -150,6 +150,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                      log.error("Delete from Qiniu failed", e);
                  }
             }
+            
+            // 调用 AI 服务删除向量索引
+            aiService.deleteDoc(docId);
+            
             knowledgeDocMapper.deleteById(docId);
         }
     }

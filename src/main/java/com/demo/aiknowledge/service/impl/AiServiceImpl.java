@@ -145,4 +145,31 @@ public class AiServiceImpl implements AiService {
             log.error("Generate title failed", e);
         }
     }
+
+    @Override
+    @Async
+    public void deleteDoc(Long docId) {
+        log.info("Deleting document vector index for docId: {}", docId);
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("doc_id", docId);
+            // file_path 也是必需的参数，但删除逻辑不需要它，传空串
+            requestBody.put("file_path", ""); 
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            String url = aiServiceUrl + "/delete";
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("Document vector index deleted successfully: {}", docId);
+            } else {
+                log.warn("Failed to delete document vector index: {}", response.getStatusCode());
+            }
+        } catch (Exception e) {
+            log.error("Delete document vector index failed", e);
+        }
+    }
 }

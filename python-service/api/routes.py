@@ -120,6 +120,23 @@ async def ask_question(request: ChatRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/delete")
+async def delete_document(request: ParseRequest):
+    """
+    删除文档的向量索引
+    """
+    try:
+        if request.doc_id:
+            print(f"Deleting document with doc_id: {request.doc_id}")
+            vector_store.delete_document(request.doc_id)
+            return {"status": "success", "message": f"Document {request.doc_id} deleted"}
+        else:
+             raise HTTPException(status_code=400, detail="doc_id is required")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/summary")
 async def generate_summary(request: SummaryRequest):
     """

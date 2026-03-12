@@ -5,7 +5,7 @@
 [![React](https://img.shields.io/badge/React-18.2-61dafb.svg)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg)](https://fastapi.tiangolo.com/)
 
-> 一个基于 RAG (Retrieval-Augmented Generation) 架构的全栈 AI 知识库系统。支持多格式文档上传、智能切分向量化、基于语义的混合检索以及结合大模型（LLM）的精准问答。包含完整的前台用户端和后台管理端。
+> 一个基于 RAG (Retrieval-Augmented Generation) 架构的全栈 AI 知识库系统。支持多格式文档上传至云存储、智能切分向量化、基于语义的混合检索以及结合大模型（LLM）的精准问答。包含完整的前台用户端和后台管理端。
 
 ---
 
@@ -17,7 +17,9 @@
     *   JWT 身份鉴权。
 *   **智能问答**:
     *   类似 ChatGPT 的流式对话体验。
-    *   基于私有知识库的精准回答，回答后附带参考来源。
+    *   基于私有知识库的精准回答。
+    *   **智能来源展示**: 回答后附带参考来源，支持文件类型图标显示，去除冗余 ID。
+    *   **在线预览/下载**: 支持直接点击来源跳转至七牛云进行在线预览或下载。
     *   支持多轮对话上下文记忆。
 *   **会话管理**:
     *   历史会话记录保存与查询。
@@ -25,14 +27,18 @@
 
 ### 🛡️ 管理端 (Admin)
 *   **仪表盘**: 
-    *   系统数据概览（用户数、文档数、问答数）。
+    *   系统数据可视化概览（ECharts 图表展示用户数、文档数、提问趋势、AI 命中率）。
+    *   热门文档与未命中问题统计。
 *   **用户管理**:
     *   用户列表查询与分页。
     *   用户状态管理（一键封禁/解封）。
 *   **知识库管理**:
-    *   **文档上传**: 支持 PDF, TXT, Markdown, Word 等多种格式。
-    *   **自动处理**: 上传即触发 Python 服务进行文档清洗、切分 (Chunking) 和向量化 (Embedding)。
-    *   文档列表与删除管理。
+    *   **云存储支持**: 集成七牛云对象存储 (Kodo)，文档上传后自动同步至云端。
+    *   **多格式支持**: 支持 PDF, TXT, Markdown, Word, Excel, PPT 等多种格式。
+    *   **自动处理**: 上传即触发 Python 服务从云端下载文档进行清洗、切分 (Chunking) 和向量化 (Embedding)。
+    *   **完整生命周期管理**: 文档删除时同步清理数据库记录、七牛云文件以及向量库索引，防止“幽灵文档”。
+*   **通知管理**:
+    *   发布系统通知，支持富文本编辑。
 *   **日志审计**:
     *   全量问答日志记录（提问、回答、时间）。
     *   用于分析热点问题和优化知识库质量。
@@ -46,12 +52,14 @@
 *   **ORM**: MyBatis Plus 3.5.5
 *   **数据库**: MySQL 8.0
 *   **缓存**: Redis (验证码存储、会话缓存)
-*   **工具**: Hutool, Lombok, Aliyun SDK
+*   **对象存储**: 七牛云 Kodo (Qiniu Cloud)
+*   **工具**: Hutool, Lombok, Aliyun SDK (SMS)
 
 ### AI 服务 (Python)
 *   **框架**: FastAPI (高性能异步 Web 框架)
 *   **LLM 编排**: LangChain
 *   **向量库**: FAISS (本地高效向量检索)
+*   **网络请求**: Requests (支持从 URL 下载文档解析)
 *   **模型**: 
     *   Embedding: 阿里云通义千问 / HuggingFace (可选)
     *   Chat: 阿里云通义千问 (Qwen-Turbo/Plus)
@@ -59,6 +67,7 @@
 ### 前端 (React)
 *   **框架**: React 18 + Vite
 *   **路由**: React Router v6
+*   **可视化**: ECharts
 *   **UI 组件**: 原生 CSS + 响应式布局
 *   **网络请求**: Axios (封装拦截器)
 
@@ -83,8 +92,9 @@
 1.  打开 `src/main/resources/application.yml`。
 2.  修改数据库配置 (`spring.datasource`) 为你的 MySQL 账号密码。
 3.  修改 Redis 配置 (`spring.data.redis`)。
-4.  (可选) 配置阿里云短信 `aliyun.sms`，如果不配置，系统将默认在控制台打印验证码。
-5.  启动 `AiKnowledgeSystemApplication.java`。
+4.  **配置七牛云**: 在 `qiniu` 下填入 `accessKey`, `secretKey`, `bucket` 和 `domain`。
+5.  (可选) 配置阿里云短信 `aliyun.sms`，如果不配置，系统将默认在控制台打印验证码。
+6.  启动 `AiKnowledgeSystemApplication.java`。
     *   服务端口: **8080**
 
 ### 4. 配置与启动 (Python AI 服务)
@@ -117,7 +127,7 @@
 
 ---
 
-## � 默认账号
+## 🔑 默认账号
 
 ### 管理员后台
 *   **登录地址**: `http://localhost:3000/admin/login`
@@ -134,12 +144,12 @@
 
 ```
 ai-knowledge-system/
-├── src/main/java/          # Java 后端源码
-├── frontend/               # React 前端源码
-├── python-service/         # Python AI 微服务源码
+├── src/main/java/          # Java 后端源码 (业务逻辑、七牛云集成)
+├── frontend/               # React 前端源码 (ECharts 图表、Chat 组件优化)
+├── python-service/         # Python AI 微服务源码 (文档解析、向量检索)
 ├── sql/                    # 数据库初始化脚本
-├── uploads/                # 上传文件存储目录
-└── vector_store/           # 向量数据库索引文件
+├── vector_store/           # 向量数据库索引文件
+└── README.md               # 项目文档
 ```
 
 ## 🤝 贡献与支持

@@ -19,4 +19,9 @@ public interface AiService {
      * @param question 用户问题
      */
     void generateTitle(Long conversationId, String question);
+
+    /**
+     * 删除文档向量索引
+     */
+    void deleteDoc(Long docId);
 }

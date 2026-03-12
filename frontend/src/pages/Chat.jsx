@@ -35,6 +35,34 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const getFileInfo = (fullName) => {
+    if (!fullName) return { icon: '📄', name: '相关文档' };
+    
+    // 1. 去除 UUID 前缀 (匹配 8-4-4-4-12_ 格式)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_/i;
+    const cleanName = fullName.replace(uuidRegex, '');
+    
+    // 2. 根据后缀匹配图标
+    const ext = cleanName.split('.').pop().toLowerCase();
+    let icon = '📄';
+    switch (ext) {
+      case 'pdf': icon = '📕'; break;
+      case 'doc':
+      case 'docx': icon = '📘'; break;
+      case 'txt': icon = '📄'; break;
+      case 'md': icon = '📝'; break;
+      case 'xlsx':
+      case 'xls': icon = '📗'; break;
+      case 'ppt':
+      case 'pptx': icon = '📙'; break;
+      case 'zip':
+      case 'rar': icon = '📦'; break;
+      default: icon = '📄';
+    }
+    
+    return { icon, name: cleanName };
+  };
+
   const renderSources = (sourcesJson) => {
     if (!sourcesJson) return null;
     try {
@@ -44,20 +72,23 @@ export default function Chat() {
         <div className="message-sources">
           <h4>参考来源:</h4>
           <ul>
-            {sources.map((s, i) => (
-              <li key={i}>
-                {/* 如果 source 字段是 URL，直接打开；否则跳转到内部知识库页面 */}
-                {s.source && (s.source.startsWith('http://') || s.source.startsWith('https://')) ? (
-                    <span className="source-link" onClick={() => window.open(s.source, '_blank')}>
-                      📄 {s.doc || s.doc_name || '相关文档'}
-                    </span>
-                ) : (
-                    <span className="source-link" onClick={() => window.open(`/knowledge?docId=${s.doc_id || s.docId}&page=${s.page}`, '_blank')}>
-                      📄 {s.doc || s.doc_name || '相关文档'}
-                    </span>
-                )}
-              </li>
-            ))}
+            {sources.map((s, i) => {
+              const { icon, name } = getFileInfo(s.doc || s.doc_name);
+              return (
+                <li key={i}>
+                  {/* 如果 source 字段是 URL，直接打开；否则跳转到内部知识库页面 */}
+                  {s.source && (s.source.startsWith('http://') || s.source.startsWith('https://')) ? (
+                      <span className="source-link" onClick={() => window.open(s.source, '_blank')}>
+                        {icon} {name}
+                      </span>
+                  ) : (
+                      <span className="source-link" onClick={() => window.open(`/knowledge?docId=${s.doc_id || s.docId}&page=${s.page}`, '_blank')}>
+                        {icon} {name}
+                      </span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       );
