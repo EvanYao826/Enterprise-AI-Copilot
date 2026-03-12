@@ -4,6 +4,7 @@ from core.parser import DocumentParser
 from core.vector_store import VectorStoreManager
 from core.llm import LLMService
 import os
+import re
 
 router = APIRouter()
 
@@ -38,7 +39,11 @@ async def parse_document(request: ParseRequest):
     解析文档并存入向量库
     """
     try:
-        if not os.path.exists(request.file_path):
+        # 判断 file_path 是 URL 还是本地路径
+        is_url = re.match(r'^https?://', request.file_path) is not None or \
+                 re.match(r'^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/', request.file_path) is not None
+        
+        if not is_url and not os.path.exists(request.file_path):
             raise HTTPException(status_code=404, detail=f"File not found: {request.file_path}")
 
         print(f"Parsing document: {request.file_path}")
@@ -54,6 +59,8 @@ async def parse_document(request: ParseRequest):
         vector_store.add_documents(chunks)
         
         return {"status": "success", "chunks_count": len(chunks)}
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()

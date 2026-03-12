@@ -69,6 +69,13 @@
             <version>2.2.1</version>
         </dependency>
 
+        <!-- Qiniu Cloud SDK -->
+        <dependency>
+            <groupId>com.qiniu</groupId>
+            <artifactId>qiniu-java-sdk</artifactId>
+            <version>7.13.0</version>
+        </dependency>
+
         <!-- Swagger / OpenAPI -->
         <dependency>
             <groupId>org.springdoc</groupId>

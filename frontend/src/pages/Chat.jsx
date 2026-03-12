@@ -47,7 +47,7 @@ export default function Chat() {
             {sources.map((s, i) => (
               <li key={i}>
                 <span className="source-link" onClick={() => window.open(`/knowledge?docId=${s.doc_id || s.docId}&page=${s.page}`, '_blank')}>
-                  📄 {s.doc || '相关文档'} (第{s.page || 1}页)
+                  📄 {s.doc || '相关文档'}
                 </span>
               </li>
             ))}
