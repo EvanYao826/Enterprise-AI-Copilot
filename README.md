@@ -5,7 +5,7 @@
 [![React](https://img.shields.io/badge/React-18.2-61dafb.svg)](https://reactjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg)](https://fastapi.tiangolo.com/)
 
-面向面试官的项目介绍：这是一个“前后端 + AI 微服务”的全栈 RAG 知识库系统。管理端上传多格式文档后，Python 服务完成解析、切分、向量化入库；用户端以对话方式检索并生成答案，同时展示来源并支持在线预览/下载。
+项目介绍：这是一个“前后端 + AI 微服务”的全栈 RAG 知识库系统。管理端上传多格式文档后，Python 服务完成解析、切分、向量化入库；用户端以对话方式检索并生成答案，同时展示来源并支持在线预览/下载。
 
 ---
 
