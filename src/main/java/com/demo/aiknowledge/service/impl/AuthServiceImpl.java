@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -33,6 +34,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final StringRedisTemplate redisTemplate;
     private final SensitiveWordUtil sensitiveWordUtil;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${aliyun.sms.accessKeyId}")
     private String accessKeyId;
@@ -128,7 +130,7 @@ public class AuthServiceImpl implements AuthService {
         // 5. 创建用户
         User user = new User();
         user.setPhone(phone);
-        user.setPassword(password); // 实际生产环境应加密存储
+        user.setPassword(passwordEncoder.encode(password)); // 加密存储密码
         user.setUsername(finalUsername);
         user.setCreateTime(LocalDateTime.now());
         
@@ -154,10 +156,23 @@ public class AuthServiceImpl implements AuthService {
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        if (!user.getPassword().equals(password)) {
-            throw new BusinessException(ErrorCode.INVALID_PASSWORD);
+        
+        // 首先尝试使用加密方式验证密码
+        if (passwordEncoder.matches(password, user.getPassword())) {
+            return user;
+        } else {
+            // 加密验证失败，检查是否为明文密码
+            if (user.getPassword().equals(password)) {
+                // 明文密码验证成功，自动迁移为加密存储
+                user.setPassword(passwordEncoder.encode(password));
+                userMapper.updateById(user);
+                log.info("Password migrated for user: {}", phone);
+                return user;
+            } else {
+                // 密码验证失败
+                throw new BusinessException(ErrorCode.INVALID_PASSWORD);
+            }
         }
-        return user;
     }
 
     @Override
@@ -170,7 +185,7 @@ public class AuthServiceImpl implements AuthService {
             user.setUsername(username);
         }
         if (StringUtils.hasText(password)) {
-            user.setPassword(password);
+            user.setPassword(passwordEncoder.encode(password)); // 加密存储密码
         }
         userMapper.updateById(user);
         return user;
