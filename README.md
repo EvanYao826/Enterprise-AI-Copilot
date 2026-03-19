@@ -72,7 +72,7 @@ Parser + Splitter + Embeddings
 
 **Python AI 服务**
 - FastAPI + LangChain
-- 向量库：FAISS（本地持久化索引）
+- 向量库：Milvus（推荐，支持高效删除）/ FAISS（本地持久化索引，作为fallback）
 - Embedding：DashScope（可选）/ HuggingFace（兜底）
 
 **前端**
@@ -96,6 +96,12 @@ Parser + Splitter + Embeddings
   cd python-service
   pip install -r requirements.txt
   ```
+- **Milvus 配置（推荐）**：
+  - 安装 Milvus：请参考 [Milvus 官方文档](https://milvus.io/docs/install_standalone-docker.md) 安装并启动 Milvus 服务
+  - 默认连接地址：`localhost:19530`
+  - 如需修改连接地址，请在 `vector_store.py` 中调整 `connection_args`
+- **FAISS 配置（作为 fallback）**：
+  - 无需额外配置，系统会自动使用本地文件存储
 - 配置环境变量（推荐 `.env`，或在系统环境变量中配置）：
   ```env
   DASHSCOPE_API_KEY=sk-your-key

@@ -57,6 +57,12 @@ class LLMService:
             """
         )
 
+    """
+     * 获取 LLM 的回答
+     * @param question 用户问题
+     * @param context_docs 上下文文档列表
+     * @return LLM 的回答
+     * """
     def get_answer(self, question: str, context_docs: list) -> str:
         if not self.llm:
             return "Error: LLM API Key is missing. Please configure DASHSCOPE_API_KEY environment variable."
