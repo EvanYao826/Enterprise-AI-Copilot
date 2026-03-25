@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { knowledgeAPI } from '../api';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { knowledgeAPI } from '../api/index';
 import './Knowledge.css';
 
 export default function Knowledge() {
   const navigate = useNavigate();
+  const location = useLocation();
   const userId = localStorage.getItem('userId');
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -18,6 +19,26 @@ export default function Knowledge() {
     }
     loadDocuments();
   }, [userId, navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const docId = params.get('docId');
+    if (docId && userId) {
+      viewDocument(docId);
+    }
+  }, [location, userId]);
+
+  const viewDocument = async (id) => {
+    try {
+      const res = await knowledgeAPI.view(id, userId);
+      // Here we could open a modal or redirect to a viewer
+      // For now, just show a message that we recorded the view
+      // and maybe highlight the document if it's in the list
+      console.log('Viewed doc:', res.data);
+    } catch (e) {
+      console.error('View doc failed', e);
+    }
+  };
 
   const loadDocuments = async () => {
     setLoading(true);

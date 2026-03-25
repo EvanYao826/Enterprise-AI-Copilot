@@ -1,14 +1,17 @@
 package com.demo.aiknowledge.service;
 
+import com.demo.aiknowledge.dto.AiResponse;
+
 public interface AiService {
     void parseDocument(String filePath, Long docId);
+
     /**
      * 根据上下文回答问题
      * @param question 用户问题
      * @param context 相关文档上下文
-     * @return AI回答
+     * @return AI回答对象
      */
-    String ask(String question, String context);
+    AiResponse ask(String question, String context);
 
     /**
      * 生成会话标题并更新数据库
@@ -16,4 +19,9 @@ public interface AiService {
      * @param question 用户问题
      */
     void generateTitle(Long conversationId, String question);
+
+    /**
+     * 删除文档向量索引
+     */
+    void deleteDoc(Long docId);
 }

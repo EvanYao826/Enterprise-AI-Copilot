@@ -14,4 +14,5 @@ public interface KnowledgeService {
     
     List<KnowledgeDoc> listDocs(Long categoryId);
     void deleteDoc(Long docId);
+    KnowledgeDoc viewDoc(Long docId, Long userId);
 }

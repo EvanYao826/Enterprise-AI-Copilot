@@ -1,13 +1,17 @@
 package com.demo.aiknowledge.service.impl;
 
+import com.demo.aiknowledge.dto.AiResponse;
 import com.demo.aiknowledge.entity.Conversation;
 import com.demo.aiknowledge.entity.KnowledgeDoc;
 import com.demo.aiknowledge.mapper.ConversationMapper;
 import com.demo.aiknowledge.mapper.KnowledgeDocMapper;
 import com.demo.aiknowledge.service.AiService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -27,9 +32,14 @@ public class AiServiceImpl implements AiService {
     private final KnowledgeDocMapper knowledgeDocMapper;
     private final ConversationMapper conversationMapper;
     private final RestTemplate restTemplate;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Value("${ai.service.url}")
     private String aiServiceUrl;
+
+    private static final String AI_CACHE_PREFIX = "ai:cache:";
+    private static final long AI_CACHE_EXPIRE = 24; // 24小时
 
     @Override
     @Async
@@ -72,9 +82,22 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
-    public String ask(String question, String context) {
+    public AiResponse ask(String question, String context) {
         log.info("User question: {}", question);
+        AiResponse aiResponse = new AiResponse();
+        
+        // 生成缓存键
+        String cacheKey = AI_CACHE_PREFIX + question.trim().toLowerCase();
+        
         try {
+            // 检查缓存
+            String cachedResponse = redisTemplate.opsForValue().get(cacheKey);
+            if (cachedResponse != null) {
+                log.info("Cache hit for question: {}", question);
+                return objectMapper.readValue(cachedResponse, AiResponse.class);
+            }
+            
+            // 缓存未命中，调用 AI 服务
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("question", question);
@@ -91,14 +114,34 @@ public class AiServiceImpl implements AiService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
-                return (String) body.get("answer");
+                aiResponse.setAnswer((String) body.get("answer"));
+                if (body.containsKey("sources")) {
+                    List<Map<String, Object>> sources = (List<Map<String, Object>>) body.get("sources");
+                    // 确保每个 source map 中都有 doc 字段，用于前端显示
+                    for (Map<String, Object> source : sources) {
+                        if (!source.containsKey("doc") && source.containsKey("doc_name")) {
+                            source.put("doc", source.get("doc_name"));
+                        }
+                    }
+                    aiResponse.setSources(sources);
+                }
+                
+                // 缓存结果
+                try {
+                    String responseJson = objectMapper.writeValueAsString(aiResponse);
+                    redisTemplate.opsForValue().set(cacheKey, responseJson, AI_CACHE_EXPIRE, java.util.concurrent.TimeUnit.HOURS);
+                    log.info("Cached response for question: {}", question);
+                } catch (JsonProcessingException e) {
+                    log.error("Failed to cache AI response", e);
+                }
             } else {
-                return "抱歉，AI 服务暂时不可用，请稍后再试。";
+                aiResponse.setAnswer("抱歉，AI 服务暂时不可用，请稍后再试。");
             }
         } catch (Exception e) {
             log.error("AI QA failed", e);
-            return "抱歉，发生了一些错误，请稍后再试。";
+            aiResponse.setAnswer("抱歉，发生了一些错误，请稍后再试。");
         }
+        return aiResponse;
     }
 
     @Override
@@ -129,6 +172,33 @@ public class AiServiceImpl implements AiService {
             }
         } catch (Exception e) {
             log.error("Generate title failed", e);
+        }
+    }
+
+    @Override
+    @Async
+    public void deleteDoc(Long docId) {
+        log.info("Deleting document vector index for docId: {}", docId);
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("doc_id", docId);
+            // file_path 也是必需的参数，但删除逻辑不需要它，传空串
+            requestBody.put("file_path", ""); 
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            String url = aiServiceUrl + "/delete";
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("Document vector index deleted successfully: {}", docId);
+            } else {
+                log.warn("Failed to delete document vector index: {}", response.getStatusCode());
+            }
+        } catch (Exception e) {
+            log.error("Delete document vector index failed", e);
         }
     }
 }

@@ -39,6 +39,7 @@ export const chatAPI = {
   getMessages: (conversationId) =>
     api.get(`/chat/messages?conversationId=${conversationId}`),
   deleteConversation: (id) => api.delete(`/chat/conversations/${id}`),
+  updateConversation: (id, data) => api.put(`/chat/conversations/${id}`, data),
 };
 
 // Knowledge API
@@ -56,6 +57,7 @@ export const knowledgeAPI = {
   list: (categoryId) =>
     api.get(`/knowledge/list${categoryId ? `?categoryId=${categoryId}` : ''}`),
   delete: (id) => api.delete(`/knowledge/${id}`),
+  view: (id, userId) => api.get(`/knowledge/view/${id}?userId=${userId}`),
 };
 
 export default api;

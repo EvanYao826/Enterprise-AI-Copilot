@@ -1,18 +1,27 @@
 package com.demo.aiknowledge.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.demo.aiknowledge.entity.DocViewLog;
 import com.demo.aiknowledge.entity.KnowledgeDoc;
+import com.demo.aiknowledge.mapper.DocViewLogMapper;
 import com.demo.aiknowledge.mapper.KnowledgeDocMapper;
 import com.demo.aiknowledge.service.AiService;
 import com.demo.aiknowledge.service.KnowledgeService;
+import com.qiniu.common.QiniuException;
+import com.qiniu.http.Response;
+import com.qiniu.storage.Configuration;
+import com.qiniu.storage.Region;
+import com.qiniu.storage.UploadManager;
+import com.qiniu.storage.BucketManager;
+import com.qiniu.util.Auth;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -23,53 +32,81 @@ import java.util.UUID;
 public class KnowledgeServiceImpl implements KnowledgeService {
 
     private final KnowledgeDocMapper knowledgeDocMapper;
+    private final DocViewLogMapper docViewLogMapper;
     private final AiService aiService;
 
-    // 1. 从配置文件读取路径，默认值为 ./uploads (但建议配置文件中必须配绝对路径)
-    @Value("${upload.dir:./uploads}")
-    private String uploadDirConfig;
+    // Qiniu Cloud Kodo 配置
+    @Value("${qiniu.accessKey:}")
+    private String qiniuAccessKey;
+    @Value("${qiniu.secretKey:}")
+    private String qiniuSecretKey;
+    @Value("${qiniu.bucket:}")
+    private String qiniuBucket;
+    @Value("${qiniu.domain:}")
+    private String qiniuDomain;
 
     @Override
     public KnowledgeDoc uploadDoc(MultipartFile file, Long categoryId) {
-        // 1. 保存文件
         String fileName = file.getOriginalFilename();
-        String uuid = UUID.randomUUID().toString();
-        // 确保文件名安全，避免路径遍历风险
         if (fileName == null) fileName = "unknown";
-        String savedFileName = uuid + "_" + fileName;
-        
-        File uploadDir = new File(uploadDirConfig);
-        if (!uploadDir.exists()) {
-            if (!uploadDir.mkdirs()) {
-                throw new RuntimeException("Failed to create upload directory");
+        String uuid = UUID.randomUUID().toString();
+        String savedFileName = "documents/" + uuid + "_" + fileName;
+        String filePath;
+
+        // 判断是否配置了 Qiniu，如果配置了则上传到 Qiniu，否则抛出异常
+        if (qiniuAccessKey != null && !qiniuAccessKey.isEmpty()) {
+            try {
+                uploadToQiniu(savedFileName, file.getInputStream());
+                // Qiniu 文件路径 (URL)
+                // 确保 domain 结尾没有 /
+                String domain = qiniuDomain.endsWith("/") ? qiniuDomain.substring(0, qiniuDomain.length() - 1) : qiniuDomain;
+                // 强制添加协议头，如果未配置
+                if (!domain.startsWith("http://") && !domain.startsWith("https://")) {
+                    domain = "http://" + domain;
+                }
+                filePath = domain + "/" + savedFileName;
+            } catch (IOException e) {
+                log.error("Qiniu upload failed", e);
+                throw new RuntimeException("Qiniu upload failed");
             }
-        }
-        
-        File dest = new File(uploadDir, savedFileName);
-        try {
-            file.transferTo(dest);
-        } catch (IOException e) {
-            log.error("File upload failed", e);
-            throw new RuntimeException("File upload failed");
+        } else {
+             throw new RuntimeException("Qiniu configuration is missing. Please configure Qiniu Cloud in application.yml");
         }
 
         // 2. 记录到数据库
         KnowledgeDoc doc = new KnowledgeDoc();
         doc.setDocName(fileName);
-        doc.setFilePath(dest.getAbsolutePath());
+        doc.setFilePath(filePath); // 这里存储的是 Qiniu URL
         doc.setCategoryId(categoryId);
         doc.setStatus("PENDING");
         doc.setCreateTime(LocalDateTime.now());
         knowledgeDocMapper.insert(doc);
 
-        // 3. 异步调用 AI 服务解析文档 (注意：这里在 KnowledgeServiceImpl 中调用一次，
-        // 而 AdminController 又调用了一次 aiService.parseDocument。
-        // 为了避免重复调用，这里可以保留，AdminController 不需要再显式调用，
-        // 或者将解析逻辑剥离出来。)
-        // 鉴于 AdminController 的实现使用了 uploadDoc 方法，这里保留调用即可。
-        aiService.parseDocument(dest.getAbsolutePath(), doc.getId());
+        // 3. 异步调用 AI 服务解析文档
+        aiService.parseDocument(filePath, doc.getId());
 
         return doc;
+    }
+
+    private void uploadToQiniu(String objectName, InputStream inputStream) {
+        // 构造一个带指定 Region 对象的配置类
+        Configuration cfg = new Configuration(Region.autoRegion());
+        UploadManager uploadManager = new UploadManager(cfg);
+        Auth auth = Auth.create(qiniuAccessKey, qiniuSecretKey);
+        String upToken = auth.uploadToken(qiniuBucket);
+
+        try {
+            Response response = uploadManager.put(inputStream, objectName, upToken, null, null);
+            // 解析上传成功的结果
+            // DefaultPutRet putRet = new Gson().fromJson(response.bodyString(), DefaultPutRet.class);
+            log.info("Qiniu upload success: {}", response.bodyString());
+        } catch (QiniuException ex) {
+            log.error("Qiniu upload failed", ex);
+            if (ex.response != null) {
+                log.error("Qiniu error response: {}", ex.response.toString());
+            }
+            throw new RuntimeException("Qiniu upload failed");
+        }
     }
 
     @Override
@@ -84,7 +121,68 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public void deleteDoc(Long docId) {
-        knowledgeDocMapper.deleteById(docId);
-        // TODO: 同时删除物理文件和向量数据库中的数据
+        KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
+        if (doc != null) {
+            // 删除 Qiniu 文件
+            if (qiniuAccessKey != null && !qiniuAccessKey.isEmpty() && doc.getFilePath().startsWith("http")) {
+                 try {
+                     // 从 URL 中提取 key
+                     // URL: http://domain/key
+                     String domain = qiniuDomain.endsWith("/") ? qiniuDomain.substring(0, qiniuDomain.length() - 1) : qiniuDomain;
+                     // 确保 domain 和 filePath 中的协议头一致性处理
+                     // 这里为了稳健，直接找到第三个 / 之后的部分作为 Key (http://domain/key)
+                     String filePath = doc.getFilePath();
+                     String key = filePath;
+                     
+                     // 方法1：移除 domain 前缀
+                     // 需要处理 domain 可能没带协议头的情况
+                     String domainNoProtocol = domain.replace("http://", "").replace("https://", "");
+                     if (filePath.contains(domainNoProtocol)) {
+                         int index = filePath.indexOf(domainNoProtocol);
+                         // + domainNoProtocol.length() + 1 (for /)
+                         if (index + domainNoProtocol.length() + 1 < filePath.length()) {
+                             key = filePath.substring(index + domainNoProtocol.length() + 1);
+                         }
+                     }
+                     
+                     deleteFromQiniu(key);
+                 } catch (Exception e) {
+                     log.error("Delete from Qiniu failed", e);
+                 }
+            }
+            
+            // 调用 AI 服务删除向量索引
+            aiService.deleteDoc(docId);
+            
+            knowledgeDocMapper.deleteById(docId);
+        }
+    }
+
+    private void deleteFromQiniu(String key) {
+        Configuration cfg = new Configuration(Region.autoRegion());
+        Auth auth = Auth.create(qiniuAccessKey, qiniuSecretKey);
+        BucketManager bucketManager = new BucketManager(auth, cfg);
+        try {
+            bucketManager.delete(qiniuBucket, key);
+        } catch (QiniuException ex) {
+            log.error("Qiniu delete failed", ex);
+            // 如果是 612 (文件不存在)，可以忽略
+            if (ex.code() != 612) {
+                throw new RuntimeException("Qiniu delete failed");
+            }
+        }
+    }
+
+    @Override
+    public KnowledgeDoc viewDoc(Long docId, Long userId) {
+        KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
+        if (doc != null) {
+            DocViewLog log = new DocViewLog();
+            log.setDocId(docId);
+            log.setUserId(userId);
+            log.setCreateTime(LocalDateTime.now());
+            docViewLogMapper.insert(log);
+        }
+        return doc;
     }
 }

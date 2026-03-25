@@ -14,5 +14,6 @@ public class Message {
     private Long conversationId;
     private String role; // user or assistant
     private String content;
+    private String sources; // JSON string
     private LocalDateTime createTime;
 }

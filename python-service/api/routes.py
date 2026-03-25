@@ -4,6 +4,7 @@ from core.parser import DocumentParser
 from core.vector_store import VectorStoreManager
 from core.llm import LLMService
 import os
+import re
 
 router = APIRouter()
 
@@ -38,7 +39,11 @@ async def parse_document(request: ParseRequest):
     解析文档并存入向量库
     """
     try:
-        if not os.path.exists(request.file_path):
+        # 判断 file_path 是 URL 还是本地路径
+        is_url = re.match(r'^https?://', request.file_path) is not None or \
+                 re.match(r'^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/', request.file_path) is not None
+        
+        if not is_url and not os.path.exists(request.file_path):
             raise HTTPException(status_code=404, detail=f"File not found: {request.file_path}")
 
         print(f"Parsing document: {request.file_path}")
@@ -54,6 +59,8 @@ async def parse_document(request: ParseRequest):
         vector_store.add_documents(chunks)
         
         return {"status": "success", "chunks_count": len(chunks)}
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -77,9 +84,54 @@ async def ask_question(request: ChatRequest):
         answer = llm_service.get_answer(request.question, docs)
         
         # Extract sources for the response
-        sources = [doc.metadata.get("source") for doc in docs]
+        sources = []
+        seen_docs = set()
+        
+        for doc in docs:
+            source = doc.metadata.get("source")
+            doc_id = doc.metadata.get("doc_id")
+            
+            # 使用 source 或 doc_id 进行去重
+            unique_key = str(doc_id) if doc_id else source
+            if unique_key in seen_docs:
+                continue
+            seen_docs.add(unique_key)
+            
+            source_info = {
+                "source": source,
+                "doc_id": doc_id,
+                "page": doc.metadata.get("page")
+            }
+            # 尝试从 source 中提取文件名
+            if source_info["source"]:
+                source_info["doc_name"] = os.path.basename(source_info["source"])
+                # 如果是 URL，提取 URL 的文件名部分
+                if source_info["source"].startswith(('http://', 'https://')):
+                    source_info["doc_name"] = source_info["source"].split('/')[-1]
+                    # 移除 URL 参数（如果有）
+                    if '?' in source_info["doc_name"]:
+                         source_info["doc_name"] = source_info["doc_name"].split('?')[0]
+            
+            sources.append(source_info)
         
         return {"answer": answer, "sources": sources}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/delete")
+async def delete_document(request: ParseRequest):
+    """
+    删除文档的向量索引
+    """
+    try:
+        if request.doc_id:
+            print(f"Deleting document with doc_id: {request.doc_id}")
+            vector_store.delete_document(request.doc_id)
+            return {"status": "success", "message": f"Document {request.doc_id} deleted"}
+        else:
+             raise HTTPException(status_code=400, detail="doc_id is required")
     except Exception as e:
         import traceback
         traceback.print_exc()
