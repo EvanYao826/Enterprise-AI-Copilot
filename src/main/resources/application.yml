@@ -1,0 +1,63 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ai-knowledge-system
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/ai_knowledge_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: root
+    password: ${db.password:CHANGE_ME} # 引用占位符
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ${redis.password:} # 引用占位符
+      database: 0
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+mybatis-plus:
+  mapper-locations: classpath:/mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# AI 服务配置
+ai:
+  service:
+    url: http://localhost:8000/api
+
+# 阿里云短信配置 - 修正引用路径
+aliyun:
+  sms:
+    # 路径对应: aliyun -> sms -> access-key-id
+    accessKeyId: ${aliyun.sms.access-key-id:YOUR_ACCESS_KEY_ID}
+    # 路径对应: aliyun -> sms -> access-key-secret
+    accessKeySecret: ${aliyun.sms.access-key-secret:YOUR_ACCESS_KEY_SECRET}
+    # 路径对应: aliyun -> sms -> sign-name
+    signName: ${aliyun.sms.sign-name:DefaultSign}
+    # 路径对应: aliyun -> sms -> template-code
+    templateCode: ${aliyun.sms.template-code:DefaultTemplate}
+
+# 七牛云配置 - 修正引用路径
+qiniu:
+  # 路径对应: qiniu -> access-key
+  accessKey: ${qiniu.access-key:YOUR_QINIU_ACCESS_KEY}
+  # 路径对应: qiniu -> secret-key
+  secretKey: ${qiniu.secret-key:YOUR_QINIU_SECRET_KEY}
+  # 路径对应: qiniu -> bucket
+  bucket: ${qiniu.bucket:default-bucket}
+  # 路径对应: qiniu -> domain
+  domain: ${qiniu.domain:default-domain.com}
+
+
+logging:
+  level:
+    com.demo.aiknowledge: DEBUG
+
+upload:
+  dir: "D:/aiknowledge/uploads"
