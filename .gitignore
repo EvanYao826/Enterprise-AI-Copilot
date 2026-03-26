@@ -1,0 +1,38 @@
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Build files
+target/
+dist/
+
+# Dependencies
+node_modules/
+python-service/__pycache__/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Sensitive files
+application-local.yml
+
+# Logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Vector store indexes
+python-service/faiss_index/
+
+# Temporary files
+bfg-1.15.0.jar
+ffs
+secrets.txt
