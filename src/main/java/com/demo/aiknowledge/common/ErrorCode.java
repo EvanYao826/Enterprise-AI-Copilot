@@ -17,7 +17,9 @@ public enum ErrorCode {
     USERNAME_SENSITIVE(4006, "用户名包含敏感词"),
     USER_NOT_FOUND(4007, "用户不存在，请先注册"),
     INVALID_PASSWORD(4008, "密码错误"),
-    PASSWORD_TOO_SHORT(4009, "密码长度不能少于6位");
+    PASSWORD_TOO_SHORT(4009, "密码长度不能少于6位"),
+    INVALID_TOKEN(4010, "无效的token");
+
 
     private final int code;
     private final String message;

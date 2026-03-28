@@ -7,6 +7,7 @@ import com.aliyuncs.dysmsapi.model.v20170525.SendSmsResponse;
 import com.aliyuncs.profile.DefaultProfile;
 import com.aliyuncs.exceptions.ClientException;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.demo.aiknowledge.common.JwtUtil;
 import com.demo.aiknowledge.common.SensitiveWordUtil;
 import com.demo.aiknowledge.entity.User;
 import com.demo.aiknowledge.mapper.UserMapper;
@@ -22,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -34,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final StringRedisTemplate redisTemplate;
     private final SensitiveWordUtil sensitiveWordUtil;
+    private final JwtUtil jwtUtil;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${aliyun.sms.accessKeyId}")
@@ -94,7 +98,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public User register(String phone, String code, String password, String username) {
+    public Map<String, Object> register(String phone, String code, String password, String username) {
         // 1. 基础校验
         if (!isValidPhone(phone)) {
             throw new BusinessException(ErrorCode.INVALID_PHONE_FORMAT);
@@ -139,7 +143,8 @@ public class AuthServiceImpl implements AuthService {
         // 注册成功后删除验证码
         redisTemplate.delete(SMS_CODE_PREFIX + phone);
         
-        return user;
+        // 生成JWT token
+        return generateTokenResponse(user);
     }
 
     private boolean isValidPhone(String phone) {
@@ -147,7 +152,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public User login(String phone, String password) {
+    public Map<String, Object> login(String phone, String password) {
         if (!isValidPhone(phone)) {
             throw new BusinessException(ErrorCode.INVALID_PHONE_FORMAT);
         }
@@ -159,7 +164,7 @@ public class AuthServiceImpl implements AuthService {
         
         // 首先尝试使用加密方式验证密码
         if (passwordEncoder.matches(password, user.getPassword())) {
-            return user;
+            return generateTokenResponse(user);
         } else {
             // 加密验证失败，检查是否为明文密码
             if (user.getPassword().equals(password)) {
@@ -167,7 +172,7 @@ public class AuthServiceImpl implements AuthService {
                 user.setPassword(passwordEncoder.encode(password));
                 userMapper.updateById(user);
                 log.info("Password migrated for user: {}", phone);
-                return user;
+                return generateTokenResponse(user);
             } else {
                 // 密码验证失败
                 throw new BusinessException(ErrorCode.INVALID_PASSWORD);
@@ -189,5 +194,45 @@ public class AuthServiceImpl implements AuthService {
         }
         userMapper.updateById(user);
         return user;
+    }
+
+    @Override
+    public Map<String, Object> refreshToken(String token) {
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+
+        try {
+            if (jwtUtil.validateToken(token)) {
+                String userIdStr = jwtUtil.getSubject(token);
+                Long userId = Long.parseLong(userIdStr);
+                User user = userMapper.selectById(userId);
+                if (user != null) {
+                    return generateTokenResponse(user);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Token refresh failed: {}", e.getMessage());
+        }
+        throw new BusinessException(ErrorCode.INVALID_TOKEN);
+    }
+
+    private Map<String, Object> generateTokenResponse(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId());
+        claims.put("phone", user.getPhone());
+        claims.put("username", user.getUsername());
+        claims.put("role", "USER"); // 默认角色
+
+        String accessToken = jwtUtil.generateToken(user.getId().toString(), claims);
+        String refreshToken = jwtUtil.generateRefreshToken(user.getId().toString());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("user", user);
+        response.put("accessToken", accessToken);
+        response.put("refreshToken", refreshToken);
+        response.put("tokenType", "Bearer");
+
+        return response;
     }
 }

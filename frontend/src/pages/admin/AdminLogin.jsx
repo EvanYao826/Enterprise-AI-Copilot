@@ -26,7 +26,7 @@ export default function AdminLogin() {
 
     try {
       const response = await adminAuthAPI.login(formData.username, formData.password);
-      localStorage.setItem('adminToken', response.data.token);
+      localStorage.setItem('adminToken', response.data.accessToken);
       localStorage.setItem('adminInfo', JSON.stringify(response.data.admin));
       navigate('/admin'); // 修正跳转路径
     } catch (err) {

@@ -9,6 +9,8 @@ import com.demo.aiknowledge.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -23,20 +25,26 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public Result<User> register(@RequestBody RegisterRequest request) {
-        User user = authService.register(request.getPhone(), request.getCode(), request.getPassword(), request.getUsername());
-        return Result.success(user);
+    public Result<Map<String, Object>> register(@RequestBody RegisterRequest request) {
+        Map<String, Object> result = authService.register(request.getPhone(), request.getCode(), request.getPassword(), request.getUsername());
+        return Result.success(result);
     }
 
     @PostMapping("/login")
-    public Result<User> login(@RequestBody LoginRequest request) {
-        User user = authService.login(request.getPhone(), request.getPassword());
-        return Result.success(user);
+    public Result<Map<String, Object>> login(@RequestBody LoginRequest request) {
+        Map<String, Object> result = authService.login(request.getPhone(), request.getPassword());
+        return Result.success(result);
     }
 
     @PostMapping("/update")
     public Result<User> updateUserInfo(@RequestBody UpdateUserRequest request) {
         User user = authService.updateUserInfo(request.getUserId(), request.getUsername(), request.getPassword());
         return Result.success(user);
+    }
+
+    @PostMapping("/refresh")
+    public Result<Map<String, Object>> refreshToken(@RequestHeader("Authorization") String token) {
+        Map<String, Object> result = authService.refreshToken(token);
+        return Result.success(result);
     }
 }

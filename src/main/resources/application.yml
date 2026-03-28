@@ -59,5 +59,11 @@ logging:
   level:
     com.demo.aiknowledge: DEBUG
 
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET:your-secret-key-change-in-production}
+  expiration: 3600000
+  refresh-expiration: 86400000
+
 upload:
   dir: "D:/aiknowledge/uploads"

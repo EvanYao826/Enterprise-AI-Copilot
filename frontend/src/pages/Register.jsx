@@ -59,9 +59,15 @@ export default function Register() {
 
     try {
       const response = await authAPI.register(formData);
-      localStorage.setItem('user', JSON.stringify(response.data));
-      localStorage.setItem('userId', response.data.id);
-      navigate('/chat');
+      // token 已通过响应拦截器存储到 cookie
+      // 只存储用户信息到 localStorage（非敏感信息）
+      const userData = response.data;
+      if (userData) {
+        const { accessToken, refreshToken, ...userInfo } = userData;
+        localStorage.setItem('user', JSON.stringify(userInfo.user));
+        localStorage.setItem('userId', userInfo.user.id);
+        navigate('/chat');
+      }
     } catch (err) {
       setError(err.message || '注册失败，请检查信息');
     } finally {

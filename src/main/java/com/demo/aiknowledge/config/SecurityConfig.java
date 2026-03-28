@@ -5,10 +5,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtFilter jwtFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -21,9 +27,16 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 // 允许所有/api/admin/login请求
                 .requestMatchers("/api/admin/login").permitAll()
-                // 允许所有其他请求（根据实际需求调整）
-                .anyRequest().permitAll()
+                // 管理员接口需要ADMIN角色
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // 用户接口需要USER或ADMIN角色
+                .requestMatchers("/api/chat/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers("/api/knowledge/**").hasAnyRole("USER", "ADMIN")
+                // 其他请求需要认证
+                .anyRequest().authenticated()
             )
+            // 添加JWT过滤器
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
             // 禁用默认的登录表单
             .formLogin(form -> form.disable())
             // 禁用默认的HTTP基本认证

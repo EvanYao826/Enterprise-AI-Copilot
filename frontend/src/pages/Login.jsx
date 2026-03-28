@@ -29,8 +29,11 @@ export default function Login() {
       // 检查返回的数据是否包含 data 字段
       const userData = response.data;
       if (userData) {
-        localStorage.setItem('user', JSON.stringify(userData));
-        localStorage.setItem('userId', userData.id);
+        // token 已通过响应拦截器存储到 cookie
+        // 只存储用户信息到 localStorage（非敏感信息）
+        const { accessToken, refreshToken, ...userInfo } = userData;
+        localStorage.setItem('user', JSON.stringify(userInfo.user));
+        localStorage.setItem('userId', userInfo.user.id);
         navigate('/chat');
       } else {
         setError('登录失败，服务器返回数据异常');
