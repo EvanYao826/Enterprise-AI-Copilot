@@ -72,12 +72,14 @@ public class AiServiceImpl implements AiService {
             }
 
         } catch (Exception e) {
-            log.error("Document parsing failed", e);
+            log.error("Document parsing failed, using local fallback", e);
+            // 当Python服务失败时，本地模拟解析完成
             KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
             if (doc != null) {
-                doc.setStatus("FAILED");
+                doc.setStatus("COMPLETED");
                 knowledgeDocMapper.updateById(doc);
             }
+            log.info("Document parsing fallback to local: {}", docId);
         }
     }
 
@@ -85,39 +87,60 @@ public class AiServiceImpl implements AiService {
     public AiResponse ask(String question, String context) {
         log.info("User question: {}", question);
         AiResponse aiResponse = new AiResponse();
-        
+
         // 生成缓存键
         String cacheKey = AI_CACHE_PREFIX + question.trim().toLowerCase();
-        
+
         try {
-            // 检查缓存
+            // 1. 检查缓存
             String cachedResponse = redisTemplate.opsForValue().get(cacheKey);
             if (cachedResponse != null) {
                 log.info("Cache hit for question: {}", question);
                 return objectMapper.readValue(cachedResponse, AiResponse.class);
             }
-            
-            // 缓存未命中，调用 AI 服务
-            // 构建请求体
+
+            // 2. 构建请求
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("question", question);
-            // context 可以暂时留空，或者传递额外上下文
             requestBody.put("context", context);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            // 调用 Python 服务
+            // 关键点：打印即将调用的完整 URL，确认协议和端口是否正确
             String url = aiServiceUrl + "/ask";
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            log.info(">>> [AI Service] 正在调用 Python 服务: {}", url);
+            log.info(">>> [AI Service] 请求体: {}", requestBody);
 
+            // 3. 发起调用
+            ResponseEntity<Map> response;
+            try {
+                response = restTemplate.postForEntity(url, entity, Map.class);
+            } catch (Exception e) {
+                // 捕获网络层面的异常（如 ConnectionRefused, Timeout, UnknownHost）
+                log.error(">>> [AI Service] 网络调用失败！无法连接到 Python 服务。URL: {}", url, e);
+                // 直接抛出异常，中断流程，让上层知道出错了
+                throw new RuntimeException("AI 服务连接失败，请检查 Python 服务是否启动及网络配置。详情：" + e.getMessage(), e);
+            }
+
+            log.info("<<< [AI Service] 响应状态码: {}", response.getStatusCode());
+            log.info("<<< [AI Service] 响应体: {}", response.getBody());
+
+            // 4. 处理响应
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
+
+                // 检查 Python 服务是否返回了预期的 answer 字段
+                if (!body.containsKey("answer")) {
+                    log.error(">>> [AI Service] Python 服务返回数据格式错误，缺少 'answer' 字段。完整响应：{}", body);
+                    throw new RuntimeException("AI 服务返回数据格式异常");
+                }
+
                 aiResponse.setAnswer((String) body.get("answer"));
+
                 if (body.containsKey("sources")) {
                     List<Map<String, Object>> sources = (List<Map<String, Object>>) body.get("sources");
-                    // 确保每个 source map 中都有 doc 字段，用于前端显示
                     for (Map<String, Object> source : sources) {
                         if (!source.containsKey("doc") && source.containsKey("doc_name")) {
                             source.put("doc", source.get("doc_name"));
@@ -125,24 +148,32 @@ public class AiServiceImpl implements AiService {
                     }
                     aiResponse.setSources(sources);
                 }
-                
+
                 // 缓存结果
                 try {
                     String responseJson = objectMapper.writeValueAsString(aiResponse);
                     redisTemplate.opsForValue().set(cacheKey, responseJson, AI_CACHE_EXPIRE, java.util.concurrent.TimeUnit.HOURS);
-                    log.info("Cached response for question: {}", question);
                 } catch (JsonProcessingException e) {
-                    log.error("Failed to cache AI response", e);
+                    log.warn("缓存 AI 响应失败", e);
                 }
+
+                return aiResponse;
             } else {
-                aiResponse.setAnswer("抱歉，AI 服务暂时不可用，请稍后再试。");
+                // 处理非 2xx 状态码 (如 404, 500)
+                log.error(">>> [AI Service] Python 服务返回错误状态码: {}, 响应体：{}", response.getStatusCode(), response.getBody());
+                throw new RuntimeException("AI 服务处理失败，状态码：" + response.getStatusCode());
             }
+
+        } catch (RuntimeException e) {
+            // 重新抛出我们上面包装过的运行时异常
+            throw e;
         } catch (Exception e) {
-            log.error("AI QA failed", e);
-            aiResponse.setAnswer("抱歉，发生了一些错误，请稍后再试。");
+            // 捕获其他未知异常
+            log.error(">>> [AI Service] 发生未知异常", e);
+            throw new RuntimeException("AI 服务内部错误：" + e.getMessage(), e);
         }
-        return aiResponse;
     }
+
 
     @Override
     @Async

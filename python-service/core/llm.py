@@ -65,7 +65,8 @@ class LLMService:
      * """
     def get_answer(self, question: str, context_docs: list) -> str:
         if not self.llm:
-            return "Error: LLM API Key is missing. Please configure DASHSCOPE_API_KEY environment variable."
+            # 当没有API密钥时，返回一个友好的默认响应
+            return "我是AI知识库助手，很高兴为您服务。由于系统未配置API密钥，我暂时无法提供详细回答。请联系管理员配置DASHSCOPE_API_KEY环境变量以启用完整功能。"
 
         # 即使没有检索到文档，也尝试回答 (通用问答)
         if not context_docs:
@@ -87,7 +88,7 @@ class LLMService:
             })
         except Exception as e:
             print(f"LLM Error: {e}")
-            return f"抱歉，AI服务暂时不可用。错误信息: {str(e)}"
+            return "抱歉，AI服务暂时不可用，请稍后再试。"
 
     def generate_title(self, question: str) -> str:
         if not self.llm:

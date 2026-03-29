@@ -82,6 +82,7 @@ async def ask_question(request: ChatRequest):
         # 2. 调用 LLM 生成回答
         # Generate answer using LLM
         answer = llm_service.get_answer(request.question, docs)
+        print(f"Generated answer: {answer}")
         
         # Extract sources for the response
         sources = []
@@ -114,7 +115,9 @@ async def ask_question(request: ChatRequest):
             
             sources.append(source_info)
         
-        return {"answer": answer, "sources": sources}
+        response = {"answer": answer, "sources": sources}
+        print(f"Response: {response}")
+        return response
     except Exception as e:
         import traceback
         traceback.print_exc()
