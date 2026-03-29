@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import {useEffect, useState} from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../api';
 import './Auth.css';
+
 
 export default function Login() {
   const navigate = useNavigate();
@@ -18,6 +19,13 @@ export default function Login() {
       [e.target.name]: e.target.value
     });
   };
+
+  useEffect(() => {
+    document.title = 'AI 知识系统-用户登录';
+    return () => {
+      document.title = 'AI 知识系统';
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

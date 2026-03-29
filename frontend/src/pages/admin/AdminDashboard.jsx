@@ -16,6 +16,14 @@ export default function AdminDashboard() {
     }
     setAdminInfo(JSON.parse(info));
 
+    useEffect(() => {
+      document.title = 'AI 知识系统-管理后台';
+      return () => {
+        document.title = 'AI 知识系统';
+      };
+    }, []);
+
+
     // Set active menu based on current path
     const path = location.pathname;
     if (path.includes('/dashboard')) setActiveMenu('dashboard');

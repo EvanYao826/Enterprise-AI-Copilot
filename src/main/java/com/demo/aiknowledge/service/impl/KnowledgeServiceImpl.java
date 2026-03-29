@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -50,13 +51,13 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         String fileName = file.getOriginalFilename();
         if (fileName == null) fileName = "unknown";
         String uuid = UUID.randomUUID().toString();
-        String savedFileName = "documents/" + uuid + "_" + fileName;
+        String savedFileName = uuid + "_" + fileName;
         String filePath;
 
-        // 判断是否配置了 Qiniu，如果配置了则上传到 Qiniu，否则抛出异常
+        // 判断是否配置了 Qiniu，如果配置了则上传到 Qiniu，否则保存到本地
         if (qiniuAccessKey != null && !qiniuAccessKey.isEmpty()) {
             try {
-                uploadToQiniu(savedFileName, file.getInputStream());
+                uploadToQiniu("documents/" + savedFileName, file.getInputStream());
                 // Qiniu 文件路径 (URL)
                 // 确保 domain 结尾没有 /
                 String domain = qiniuDomain.endsWith("/") ? qiniuDomain.substring(0, qiniuDomain.length() - 1) : qiniuDomain;
@@ -64,19 +65,32 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 if (!domain.startsWith("http://") && !domain.startsWith("https://")) {
                     domain = "http://" + domain;
                 }
-                filePath = domain + "/" + savedFileName;
+                filePath = domain + "/documents/" + savedFileName;
             } catch (IOException e) {
                 log.error("Qiniu upload failed", e);
                 throw new RuntimeException("Qiniu upload failed");
             }
         } else {
-             throw new RuntimeException("Qiniu configuration is missing. Please configure Qiniu Cloud in application.yml");
+            // 保存到本地
+            try {
+                String uploadDir = "D:/aiknowledge/uploads";
+                File dir = new File(uploadDir);
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
+                File savedFile = new File(dir, savedFileName);
+                file.transferTo(savedFile);
+                filePath = savedFile.getAbsolutePath();
+            } catch (IOException e) {
+                log.error("Local file save failed", e);
+                throw new RuntimeException("Local file save failed");
+            }
         }
 
         // 2. 记录到数据库
         KnowledgeDoc doc = new KnowledgeDoc();
         doc.setDocName(fileName);
-        doc.setFilePath(filePath); // 这里存储的是 Qiniu URL
+        doc.setFilePath(filePath);
         doc.setCategoryId(categoryId);
         doc.setStatus("PENDING");
         doc.setCreateTime(LocalDateTime.now());

@@ -14,6 +14,14 @@ export default function Chat() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
+    document.title = 'AI 知识系统-智能对话';
+    return () => {
+      document.title = 'AI 知识系统';
+    };
+  }, []);
+
+
+  useEffect(() => {
     if (!userId) {
       navigate('/login');
       return;

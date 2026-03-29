@@ -1,38 +1,51 @@
-# IDE files
+# Maven
+/target
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# IDE
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
+*.iml
+*.ipr
+*.iws
 
-# Build files
-target/
-dist/
+# OS
+.DS_Store
+Thumbs.db
 
-# Dependencies
+# Node.js
 node_modules/
-python-service/__pycache__/
+npm-debug.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Test files
+test_*.py
 
 # Environment files
 .env
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Sensitive files
-application-local.yml
+# Spring Boot local configuration
+src/main/resources/application-local.yml
+src/main/resources/*.key
 
 # Logs
-logs/
+logs
 *.log
 
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Vector store indexes
-python-service/faiss_index/
-
 # Temporary files
-bfg-1.15.0.jar
-ffs
-secrets.txt
+tmp/
+temp/
