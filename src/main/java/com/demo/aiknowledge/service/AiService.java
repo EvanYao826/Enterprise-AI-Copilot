@@ -9,9 +9,10 @@ public interface AiService {
      * 根据上下文回答问题
      * @param question 用户问题
      * @param context 相关文档上下文
+     * @param userId 用户ID
      * @return AI回答对象
      */
-    AiResponse ask(String question, String context);
+    AiResponse ask(String question, String context, Long userId);
 
     /**
      * 生成会话标题并更新数据库

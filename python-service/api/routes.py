@@ -41,7 +41,8 @@ class ParseRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
-    # context: str = "" # Optional, if context is passed directly (not used here)
+    context: str = "" # Optional, if context is passed directly (not used here)
+    username: str = None # Optional, if username is provided
 
 class SummaryRequest(BaseModel):
     question: str
@@ -118,50 +119,59 @@ async def ask_question(request: ChatRequest):
     """
     start_time = time.time()
     try:
-        logger.info(f"Received question: {request.question}")
+        logger.info(f"Received question: {request.question}, username: {request.username}")
         
-        # 1. 向量搜索召回相关文档
-        # Search for relevant documents
-        docs = vector_store.search(request.question, k=3)
-        logger.info(f"Found {len(docs)} relevant documents")
-        
-        # 2. 调用 LLM 生成回答
-        # Generate answer using LLM
-        answer = llm_service.get_answer(request.question, docs)
-        logger.info(f"Generated answer successfully")
-        
-        # Extract sources for the response
-        sources = []
-        seen_docs = set()
-        
-        for doc in docs:
-            source = doc.metadata.get("source")
-            doc_id = doc.metadata.get("doc_id")
+        # 处理身份相关问题
+        lower_question = request.question.lower()
+        identity_keywords = ["我是谁", "我叫什么", "我的名字", "我的身份"]
+        if any(keyword in lower_question for keyword in identity_keywords) and request.username:
+            logger.info(f"Answering identity question for user: {request.username}")
+            answer = f"你是 {request.username}，是本系统的注册用户。"
+            response = {"answer": answer, "sources": []}
+        else:
+            # 1. 向量搜索召回相关文档
+            # Search for relevant documents
+            docs = vector_store.search(request.question, k=3)
+            logger.info(f"Found {len(docs)} relevant documents")
             
-            # 使用 source 或 doc_id 进行去重
-            unique_key = str(doc_id) if doc_id else source
-            if unique_key in seen_docs:
-                continue
-            seen_docs.add(unique_key)
+            # 2. 调用 LLM 生成回答
+            # Generate answer using LLM
+            answer = llm_service.get_answer(request.question, docs)
+            logger.info(f"Generated answer successfully")
             
-            source_info = {
-                "source": source,
-                "doc_id": doc_id,
-                "page": doc.metadata.get("page")
-            }
-            # 尝试从 source 中提取文件名
-            if source_info["source"]:
-                source_info["doc_name"] = os.path.basename(source_info["source"])
-                # 如果是 URL，提取 URL 的文件名部分
-                if source_info["source"].startswith(('http://', 'https://')):
-                    source_info["doc_name"] = source_info["source"].split('/')[-1]
-                    # 移除 URL 参数（如果有）
-                    if '?' in source_info["doc_name"]:
-                         source_info["doc_name"] = source_info["doc_name"].split('?')[0]
+            # Extract sources for the response
+            sources = []
+            seen_docs = set()
             
-            sources.append(source_info)
+            for doc in docs:
+                source = doc.metadata.get("source")
+                doc_id = doc.metadata.get("doc_id")
+                
+                # 使用 source 或 doc_id 进行去重
+                unique_key = str(doc_id) if doc_id else source
+                if unique_key in seen_docs:
+                    continue
+                seen_docs.add(unique_key)
+                
+                source_info = {
+                    "source": source,
+                    "doc_id": doc_id,
+                    "page": doc.metadata.get("page")
+                }
+                # 尝试从 source 中提取文件名
+                if source_info["source"]:
+                    source_info["doc_name"] = os.path.basename(source_info["source"])
+                    # 如果是 URL，提取 URL 的文件名部分
+                    if source_info["source"].startswith(('http://', 'https://')):
+                        source_info["doc_name"] = source_info["source"].split('/')[-1]
+                        # 移除 URL 参数（如果有）
+                        if '?' in source_info["doc_name"]:
+                             source_info["doc_name"] = source_info["doc_name"].split('?')[0]
+                
+                sources.append(source_info)
+            
+            response = {"answer": answer, "sources": sources}
         
-        response = {"answer": answer, "sources": sources}
         logger.info(f"Response generated successfully")
         
         process_time = time.time() - start_time

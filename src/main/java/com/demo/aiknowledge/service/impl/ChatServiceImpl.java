@@ -85,7 +85,7 @@ public class ChatServiceImpl implements ChatService {
         }
 
         // 2. 调用 AI 服务获取回答
-        AiResponse aiResponse = aiService.ask(content, "");
+        AiResponse aiResponse = aiService.ask(content, "", userId);
         String answer = aiResponse.getAnswer();
         String sourcesJson = null;
 

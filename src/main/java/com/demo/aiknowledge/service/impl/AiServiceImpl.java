@@ -3,9 +3,11 @@ package com.demo.aiknowledge.service.impl;
 import com.demo.aiknowledge.dto.AiResponse;
 import com.demo.aiknowledge.entity.Conversation;
 import com.demo.aiknowledge.entity.KnowledgeDoc;
+import com.demo.aiknowledge.entity.User;
 import com.demo.aiknowledge.mapper.ConversationMapper;
 import com.demo.aiknowledge.mapper.KnowledgeDocMapper;
 import com.demo.aiknowledge.service.AiService;
+import com.demo.aiknowledge.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class AiServiceImpl implements AiService {
     private final RestTemplate restTemplate;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final UserService userService;
 
     @Value("${ai.service.url}")
     private String aiServiceUrl;
@@ -54,7 +57,8 @@ public class AiServiceImpl implements AiService {
             "你的功能", "你能做什么", "你的作用", "你是谁开发的",
             "你来自哪里", "你好", "hello", "hi", "你好吗",
             "how are you", "你叫什么", "你是什么东西", "你是机器人吗",
-            "你是AI吗", "你是智能助手吗", "你能帮助我吗", "你的能力"
+            "你是AI吗", "你是智能助手吗", "你能帮助我吗", "你的能力",
+            "我是谁", "我叫什么", "我的名字", "我的身份"
         };
         
         for (String keyword : generalKeywords) {
@@ -108,8 +112,8 @@ public class AiServiceImpl implements AiService {
     }
 
     @Override
-    public AiResponse ask(String question, String context) {
-        log.info("User question: {}", question);
+    public AiResponse ask(String question, String context, Long userId) {
+        log.info("User question: {}, userId: {}", question, userId);
         AiResponse aiResponse = new AiResponse();
 
         // 生成缓存键
@@ -128,6 +132,15 @@ public class AiServiceImpl implements AiService {
             requestBody.put("question", question);
             requestBody.put("context", context);
 
+            // 3. 获取用户信息（如果是身份相关问题）
+            if (isGeneralQuestion(question) && userId != null) {
+                User user = userService.getById(userId);
+                if (user != null) {
+                    requestBody.put("username", user.getUsername());
+                    log.info("Added username to request: {}", user.getUsername());
+                }
+            }
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
@@ -137,7 +150,7 @@ public class AiServiceImpl implements AiService {
             log.info(">>> [AI Service] 正在调用 Python 服务: {}", url);
             log.info(">>> [AI Service] 请求体: {}", requestBody);
 
-            // 3. 发起调用
+            // 4. 发起调用
             ResponseEntity<Map> response;
             try {
                 response = restTemplate.postForEntity(url, entity, Map.class);
@@ -151,7 +164,7 @@ public class AiServiceImpl implements AiService {
             log.info("<<< [AI Service] 响应状态码: {}", response.getStatusCode());
             log.info("<<< [AI Service] 响应体: {}", response.getBody());
 
-            // 4. 处理响应
+            // 5. 处理响应
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
 
