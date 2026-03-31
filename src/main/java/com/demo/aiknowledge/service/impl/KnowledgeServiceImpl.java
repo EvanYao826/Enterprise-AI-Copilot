@@ -137,6 +137,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public void deleteDoc(Long docId) {
         KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
         if (doc != null) {
+            log.info("Deleting document: id={}, name={}", docId, doc.getDocName());
+            
             // 删除 Qiniu 文件
             if (qiniuAccessKey != null && !qiniuAccessKey.isEmpty() && doc.getFilePath().startsWith("http")) {
                  try {
@@ -160,15 +162,24 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                      }
                      
                      deleteFromQiniu(key);
+                     log.info("Deleted file from Qiniu: key={}", key);
                  } catch (Exception e) {
                      log.error("Delete from Qiniu failed", e);
                  }
             }
             
             // 调用 AI 服务删除向量索引
-            aiService.deleteDoc(docId);
+            try {
+                aiService.deleteDoc(docId);
+                log.info("Deleted vector index for document: id={}", docId);
+            } catch (Exception e) {
+                log.error("Delete vector index failed", e);
+            }
             
             knowledgeDocMapper.deleteById(docId);
+            log.info("Document deleted successfully: id={}, name={}", docId, doc.getDocName());
+        } else {
+            log.warn("Attempt to delete non-existent document: id={}", docId);
         }
     }
 

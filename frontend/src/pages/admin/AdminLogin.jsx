@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminAuthAPI } from '../../api/admin';
 import '../Auth.css';
@@ -18,13 +18,6 @@ export default function AdminLogin() {
       [e.target.name]: e.target.value
     });
   };
-
-  useEffect(() => {
-    document.title = 'AI 知识系统-管理端登录';
-    return () => {
-      document.title = 'AI 知识系统';
-    };
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

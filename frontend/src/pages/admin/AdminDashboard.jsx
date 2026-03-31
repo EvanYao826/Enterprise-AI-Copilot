@@ -9,20 +9,19 @@ export default function AdminDashboard() {
   const [activeMenu, setActiveMenu] = useState('users');
 
   useEffect(() => {
+    document.title = 'AI 知识系统-管理后台';
+    return () => {
+      document.title = 'AI 知识系统';
+    };
+  }, []);
+
+  useEffect(() => {
     const info = localStorage.getItem('adminInfo');
     if (!info) {
       navigate('/admin/login');
       return;
     }
     setAdminInfo(JSON.parse(info));
-
-    useEffect(() => {
-      document.title = 'AI 知识系统-管理后台';
-      return () => {
-        document.title = 'AI 知识系统';
-      };
-    }, []);
-
 
     // Set active menu based on current path
     const path = location.pathname;

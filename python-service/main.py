@@ -29,5 +29,26 @@ app.include_router(router, prefix="/api")
 async def root():
     return {"message": "AI Knowledge System Python Service is running"}
 
+# 健康检查端点
+@app.get("/health")
+async def health_check():
+    import os
+    # 检查环境变量
+    has_api_key = os.getenv("DASHSCOPE_API_KEY") is not None
+    
+    # 检查向量存储目录
+    vector_store_dir = os.path.join(os.getcwd(), "faiss_index")
+    vector_store_exists = os.path.exists(vector_store_dir)
+    
+    return {
+        "status": "healthy",
+        "environment": {
+            "has_dashscope_api_key": has_api_key
+        },
+        "vector_store": {
+            "exists": vector_store_exists
+        }
+    }
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

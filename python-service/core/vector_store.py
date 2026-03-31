@@ -40,7 +40,7 @@ class VectorStoreManager:
                 print("Re-initializing empty vector store...")
                 # Backup old index just in case
                 if os.path.exists(self.persist_directory + "_backup"):
-                    shutil.rmtree(persist_directory + "_backup")
+                    shutil.rmtree(self.persist_directory + "_backup")
                 shutil.move(self.persist_directory, self.persist_directory + "_backup")
                 self.vector_store = None
         else:

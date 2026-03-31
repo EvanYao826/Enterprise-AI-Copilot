@@ -154,16 +154,19 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public Map<String, Object> login(String phone, String password) {
         if (!isValidPhone(phone)) {
+            log.warn("Login attempt with invalid phone format: {}", phone);
             throw new BusinessException(ErrorCode.INVALID_PHONE_FORMAT);
         }
         
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
         if (user == null) {
+            log.warn("Login attempt for non-existent user: {}", phone);
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
         
         // 首先尝试使用加密方式验证密码
         if (passwordEncoder.matches(password, user.getPassword())) {
+            log.info("User login successful: phone={}, userId={}", phone, user.getId());
             return generateTokenResponse(user);
         } else {
             // 加密验证失败，检查是否为明文密码
@@ -171,10 +174,11 @@ public class AuthServiceImpl implements AuthService {
                 // 明文密码验证成功，自动迁移为加密存储
                 user.setPassword(passwordEncoder.encode(password));
                 userMapper.updateById(user);
-                log.info("Password migrated for user: {}", phone);
+                log.info("Password migrated and login successful: phone={}, userId={}", phone, user.getId());
                 return generateTokenResponse(user);
             } else {
                 // 密码验证失败
+                log.warn("Login failed: invalid password for phone={}", phone);
                 throw new BusinessException(ErrorCode.INVALID_PASSWORD);
             }
         }
