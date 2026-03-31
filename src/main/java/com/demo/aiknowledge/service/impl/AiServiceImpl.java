@@ -40,6 +40,30 @@ public class AiServiceImpl implements AiService {
 
     private static final String AI_CACHE_PREFIX = "ai:cache:";
     private static final long AI_CACHE_EXPIRE = 24; // 24小时
+    
+    /**
+     * 判断问题是否是一般性问题，不需要参考来源
+     * @param question 用户问题
+     * @return 是否是一般性问题
+     */
+    private boolean isGeneralQuestion(String question) {
+        String lowerQuestion = question.toLowerCase();
+        // 检查问题是否包含关于系统自身、身份、功能等关键词
+        String[] generalKeywords = {
+            "你是谁", "你是什么", "你的名字", "你是做什么的", 
+            "你的功能", "你能做什么", "你的作用", "你是谁开发的",
+            "你来自哪里", "你好", "hello", "hi", "你好吗",
+            "how are you", "你叫什么", "你是什么东西", "你是机器人吗",
+            "你是AI吗", "你是智能助手吗", "你能帮助我吗", "你的能力"
+        };
+        
+        for (String keyword : generalKeywords) {
+            if (lowerQuestion.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     @Async
@@ -139,14 +163,20 @@ public class AiServiceImpl implements AiService {
 
                 aiResponse.setAnswer((String) body.get("answer"));
 
-                if (body.containsKey("sources")) {
+                // 检查问题是否需要参考来源
+                if (!isGeneralQuestion(question) && body.containsKey("sources")) {
                     List<Map<String, Object>> sources = (List<Map<String, Object>>) body.get("sources");
-                    for (Map<String, Object> source : sources) {
-                        if (!source.containsKey("doc") && source.containsKey("doc_name")) {
-                            source.put("doc", source.get("doc_name"));
+                    if (sources != null && !sources.isEmpty()) {
+                        for (Map<String, Object> source : sources) {
+                            if (!source.containsKey("doc") && source.containsKey("doc_name")) {
+                                source.put("doc", source.get("doc_name"));
+                            }
                         }
+                        aiResponse.setSources(sources);
                     }
-                    aiResponse.setSources(sources);
+                } else {
+                    // 对于一般性问题，不设置参考来源
+                    aiResponse.setSources(null);
                 }
 
                 // 缓存结果
