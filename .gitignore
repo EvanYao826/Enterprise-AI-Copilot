@@ -33,10 +33,16 @@ test_*.py
 
 # Environment files
 .env
+.env.*
+!.env.template
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Uploads directory (user generated content)
+uploads/
+!uploads/.gitkeep
 
 # Spring Boot local configuration
 src/main/resources/application-local.yml
