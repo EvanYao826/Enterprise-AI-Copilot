@@ -27,6 +27,9 @@ npm-debug.log
 __pycache__/
 *.pyc
 venv/
+*.pkl
+*.faiss
+
 
 # Test files
 test_*.py
@@ -55,3 +58,11 @@ logs
 # Temporary files
 tmp/
 temp/
+
+
+
+# 向量索引目录
+faiss_index/
+
+# 示例环境变量文件（如果项目使用 .env.example 而非 .env.template）
+!.env.example
