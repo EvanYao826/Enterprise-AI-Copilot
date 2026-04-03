@@ -10,6 +10,7 @@ import com.demo.aiknowledge.mapper.MessageMapper;
 import com.demo.aiknowledge.mapper.QaLogMapper;
 import com.demo.aiknowledge.service.AiService;
 import com.demo.aiknowledge.service.ChatService;
+import com.demo.aiknowledge.service.ConversationContextService;
 import com.demo.aiknowledge.service.QaUnansweredService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class ChatServiceImpl implements ChatService {
     private final QaLogMapper qaLogMapper;
     private final AiService aiService;
     private final QaUnansweredService qaUnansweredService;
+    private final ConversationContextService conversationContextService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -76,6 +78,9 @@ public class ChatServiceImpl implements ChatService {
         userMsg.setCreateTime(LocalDateTime.now());
         messageMapper.insert(userMsg);
 
+        // 1.1 更新对话上下文（用户消息）
+        conversationContextService.updateConversationContext(conversationId, userId, userMsg);
+
         // 检查是否为第一条消息，如果是则生成标题
         Long msgCount = messageMapper.selectCount(new LambdaQueryWrapper<Message>()
                 .eq(Message::getConversationId, conversationId));
@@ -84,8 +89,18 @@ public class ChatServiceImpl implements ChatService {
              aiService.generateTitle(conversationId, content);
         }
 
-        // 2. 调用 AI 服务获取回答
-        AiResponse aiResponse = aiService.ask(content, "", userId);
+        // 2. 获取对话上下文（获取最近10条消息，包含刚插入的用户消息）
+        List<Message> contextMessages = conversationContextService.getConversationContext(conversationId, 10);
+        // 构建上下文字符串
+        StringBuilder contextBuilder = new StringBuilder();
+        for (Message msg : contextMessages) {
+            contextBuilder.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
+        }
+        String conversationContext = contextBuilder.toString();
+        log.debug("对话上下文构建完成，长度: {}，内容: {}", conversationContext.length(), conversationContext);
+
+        // 3. 调用 AI 服务获取回答（传入对话上下文）
+        AiResponse aiResponse = aiService.ask(content, conversationContext, userId);
         String answer = aiResponse.getAnswer();
         String sourcesJson = null;
 
@@ -113,6 +128,9 @@ public class ChatServiceImpl implements ChatService {
         aiMsg.setCreateTime(LocalDateTime.now());
         messageMapper.insert(aiMsg);
 
+        // 3.1 更新对话上下文（AI消息）
+        conversationContextService.updateConversationContext(conversationId, userId, aiMsg);
+
         // 4. 记录 QA 日志
         QaLog qaLog = new QaLog();
         qaLog.setUserId(userId);
@@ -126,9 +144,8 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<Message> getMessages(Long conversationId) {
-        return messageMapper.selectList(new LambdaQueryWrapper<Message>()
-                .eq(Message::getConversationId, conversationId)
-                .orderByAsc(Message::getCreateTime));
+        // 使用对话上下文服务获取消息，支持滑动窗口和缓存
+        return conversationContextService.getConversationContext(conversationId, 20);
     }
 
     @Override

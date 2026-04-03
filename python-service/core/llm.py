@@ -17,26 +17,21 @@ class LLMService:
             self.llm = Tongyi(model_name="qwen-plus", api_key=api_key)
 
         # 优化后的 Prompt 模板
-        # 允许在没有上下文的情况下进行通用回答
+        # 支持对话上下文和知识库上下文
         self.prompt = PromptTemplate.from_template(
             """
-            你是一个专业的AI知识库助手。请回答用户的问题。
-            
-            如果提供了以下上下文信息，请优先基于上下文回答。
-            如果上下文信息不足或与问题无关，请利用你的通用知识库进行回答，但请尽量简洁准确。
-            
-            上下文信息：
-            {context}
-            
-            用户问题：
+            你是一个专业的AI知识库助手。请根据以下信息直接回答问题，不要展示思考过程。
+
+            对话历史：
+            {conversation_context}
+
+            相关知识库：
+            {knowledge_context}
+
+            用户当前问题：
             {question}
-            
-            回答要求：
-            1. 如果上下文包含答案，请优先使用上下文信息，并用通俗易懂的语言回答。
-            2. 如果上下文不相关或为空，请忽略上下文，直接回答用户问题。
-            3. 回答时保持客观、中立。
-            
-            回答：
+
+            请直接给出简洁、准确的回答：
             """
         )
 
@@ -61,29 +56,35 @@ class LLMService:
      * 获取 LLM 的回答
      * @param question 用户问题
      * @param context_docs 上下文文档列表
+     * @param conversation_context 对话上下文（可选）
      * @return LLM 的回答
      * """
-    def get_answer(self, question: str, context_docs: list) -> str:
+    def get_answer(self, question: str, context_docs: list, conversation_context: str = "") -> str:
         if not self.llm:
             # 当没有API密钥时，返回一个友好的默认响应
             return "我是AI知识库助手，很高兴为您服务。由于系统未配置API密钥，我暂时无法提供详细回答。请联系管理员配置DASHSCOPE_API_KEY环境变量以启用完整功能。"
 
-        # 即使没有检索到文档，也尝试回答 (通用问答)
+        # 处理知识库上下文
         if not context_docs:
-            context_text = "（无相关上下文信息）"
+            knowledge_context = "（无相关知识库信息）"
         else:
-            context_text = "\n\n".join([doc.page_content for doc in context_docs])
-        
+            knowledge_context = "\n\n".join([doc.page_content for doc in context_docs])
+
+        # 处理对话上下文
+        if not conversation_context or conversation_context.strip() == "":
+            conversation_context = "（无对话历史）"
+
         # 构建处理链
         chain = (
             self.prompt
             | self.llm
             | StrOutputParser()
         )
-        
+
         try:
             return chain.invoke({
-                "context": context_text,
+                "conversation_context": conversation_context,
+                "knowledge_context": knowledge_context,
                 "question": question
             })
         except Exception as e:

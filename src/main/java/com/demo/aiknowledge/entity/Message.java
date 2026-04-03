@@ -15,5 +15,6 @@ public class Message {
     private String role; // user or assistant
     private String content;
     private String sources; // JSON string
+    private Double importanceScore; // 消息重要性评分（0-1）
     private LocalDateTime createTime;
 }

@@ -134,9 +134,9 @@ async def ask_question(request: ChatRequest):
             docs = vector_store.search(request.question, k=3)
             logger.info(f"Found {len(docs)} relevant documents")
             
-            # 2. 调用 LLM 生成回答
-            # Generate answer using LLM
-            answer = llm_service.get_answer(request.question, docs)
+            # 2. 调用 LLM 生成回答（传入对话上下文）
+            # Generate answer using LLM (pass conversation context)
+            answer = llm_service.get_answer(request.question, docs, request.context)
             logger.info(f"Generated answer successfully")
             
             # Extract sources for the response
