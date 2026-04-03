@@ -1,12 +1,15 @@
 package com.demo.aiknowledge.service.impl;
 
+
 import com.demo.aiknowledge.dto.AiResponse;
 import com.demo.aiknowledge.entity.Conversation;
 import com.demo.aiknowledge.entity.KnowledgeDoc;
 import com.demo.aiknowledge.entity.User;
+import com.demo.aiknowledge.config.CacheConfig;
 import com.demo.aiknowledge.mapper.ConversationMapper;
 import com.demo.aiknowledge.mapper.KnowledgeDocMapper;
 import com.demo.aiknowledge.service.AiService;
+import com.demo.aiknowledge.service.CacheService;
 import com.demo.aiknowledge.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,12 +40,11 @@ public class AiServiceImpl implements AiService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final UserService userService;
+    private final CacheService cacheService;
 
     @Value("${ai.service.url}")
     private String aiServiceUrl;
 
-    private static final String AI_CACHE_PREFIX = "ai:cache:";
-    private static final long AI_CACHE_EXPIRE = 24; // 24小时
     
     /**
      * 判断问题是否是一般性问题，不需要参考来源
@@ -117,14 +119,18 @@ public class AiServiceImpl implements AiService {
         AiResponse aiResponse = new AiResponse();
 
         // 生成缓存键
-        String cacheKey = AI_CACHE_PREFIX + question.trim().toLowerCase();
+        String cacheKey = question.trim().toLowerCase();
 
         try {
-            // 1. 检查缓存
-            String cachedResponse = redisTemplate.opsForValue().get(cacheKey);
+            // 1. 检查缓存（使用新的缓存服务）
+            AiResponse cachedResponse = cacheService.get(
+                CacheConfig.CacheConstants.CACHE_AI_ANSWER,
+                cacheKey,
+                AiResponse.class
+            );
             if (cachedResponse != null) {
                 log.info("Cache hit for question: {}", question);
-                return objectMapper.readValue(cachedResponse, AiResponse.class);
+                return cachedResponse;
             }
 
             // 2. 构建请求
@@ -192,13 +198,12 @@ public class AiServiceImpl implements AiService {
                     aiResponse.setSources(null);
                 }
 
-                // 缓存结果
-                try {
-                    String responseJson = objectMapper.writeValueAsString(aiResponse);
-                    redisTemplate.opsForValue().set(cacheKey, responseJson, AI_CACHE_EXPIRE, java.util.concurrent.TimeUnit.HOURS);
-                } catch (JsonProcessingException e) {
-                    log.warn("缓存 AI 响应失败", e);
-                }
+                // 缓存结果（使用新的缓存服务）
+                cacheService.set(
+                    CacheConfig.CacheConstants.CACHE_AI_ANSWER,
+                    cacheKey,
+                    aiResponse
+                );
 
                 return aiResponse;
             } else {
