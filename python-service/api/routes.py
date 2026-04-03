@@ -267,7 +267,7 @@ async def generate_summary(request: SummaryRequest):
     try:
         title = llm_service.generate_title(request.question)
         logger.info(f"Generated summary: {title}")
-        
+
         process_time = time.time() - start_time
         logger.info(
             json.dumps({
@@ -302,3 +302,119 @@ async def generate_summary(request: SummaryRequest):
         )
         # 不返回具体错误信息，避免泄露内部实现细节
         raise HTTPException(status_code=500, detail="标题生成失败")
+
+@router.get("/vector-store/stats")
+async def get_vector_store_stats():
+    """
+    获取向量库统计信息
+    """
+    start_time = time.time()
+    try:
+        stats = vector_store.get_stats()
+
+        process_time = time.time() - start_time
+        logger.info(
+            json.dumps({
+                "method": "GET",
+                "path": "/api/vector-store/stats",
+                "status_code": 200,
+                "process_time": process_time
+            })
+        )
+        return stats
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"Error getting vector store stats: {str(e)}")
+        logger.info(
+            json.dumps({
+                "method": "GET",
+                "path": "/api/vector-store/stats",
+                "status_code": 500,
+                "process_time": process_time
+            })
+        )
+        raise HTTPException(status_code=500, detail="获取向量库统计信息失败")
+
+@router.post("/vector-store/migrate")
+async def migrate_to_milvus():
+    """
+    将FAISS数据迁移到Milvus
+    """
+    start_time = time.time()
+    try:
+        if not vector_store.use_milvus:
+            raise HTTPException(status_code=400, detail="当前未使用Milvus，无法迁移")
+
+        success = vector_store.migrate_faiss_to_milvus()
+
+        process_time = time.time() - start_time
+        logger.info(
+            json.dumps({
+                "method": "POST",
+                "path": "/api/vector-store/migrate",
+                "status_code": 200,
+                "process_time": process_time
+            })
+        )
+
+        if success:
+            return {"status": "success", "message": "数据迁移成功"}
+        else:
+            return {"status": "partial", "message": "迁移完成但可能有部分数据未迁移"}
+
+    except HTTPException as e:
+        process_time = time.time() - start_time
+        logger.info(
+            json.dumps({
+                "method": "POST",
+                "path": "/api/vector-store/migrate",
+                "status_code": e.status_code,
+                "process_time": process_time
+            })
+        )
+        raise
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"Error migrating to Milvus: {str(e)}")
+        logger.info(
+            json.dumps({
+                "method": "POST",
+                "path": "/api/vector-store/migrate",
+                "status_code": 500,
+                "process_time": process_time
+            })
+        )
+        raise HTTPException(status_code=500, detail="数据迁移失败")
+
+@router.delete("/vector-store/collection")
+async def delete_vector_collection():
+    """
+    删除整个向量库（慎用）
+    """
+    start_time = time.time()
+    try:
+        # 添加确认机制（实际生产环境需要更严格的权限控制）
+        vector_store.delete_collection()
+
+        process_time = time.time() - start_time
+        logger.info(
+            json.dumps({
+                "method": "DELETE",
+                "path": "/api/vector-store/collection",
+                "status_code": 200,
+                "process_time": process_time
+            })
+        )
+        return {"status": "success", "message": "向量库已删除"}
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"Error deleting vector collection: {str(e)}")
+        logger.info(
+            json.dumps({
+                "method": "DELETE",
+                "path": "/api/vector-store/collection",
+                "status_code": 500,
+                "process_time": process_time
+            })
+        )
+        raise HTTPException(status_code=500, detail="删除向量库失败")

@@ -35,19 +35,35 @@ async def health_check():
     import os
     # 检查环境变量
     has_api_key = os.getenv("DASHSCOPE_API_KEY") is not None
-    
-    # 检查向量存储目录
-    vector_store_dir = os.path.join(os.getcwd(), "faiss_index")
-    vector_store_exists = os.path.exists(vector_store_dir)
-    
+    use_milvus = os.getenv("USE_MILVUS", "true").lower() == "true"
+    milvus_host = os.getenv("MILVUS_HOST", "localhost")
+    milvus_port = os.getenv("MILVUS_PORT", "19530")
+
+    # 检查向量存储
+    vector_store_info = {}
+    if use_milvus:
+        vector_store_info = {
+            "type": "Milvus",
+            "host": milvus_host,
+            "port": milvus_port,
+            "status": "configured"
+        }
+    else:
+        vector_store_dir = os.path.join(os.getcwd(), "faiss_index")
+        vector_store_exists = os.path.exists(vector_store_dir)
+        vector_store_info = {
+            "type": "FAISS",
+            "exists": vector_store_exists,
+            "directory": vector_store_dir
+        }
+
     return {
         "status": "healthy",
         "environment": {
-            "has_dashscope_api_key": has_api_key
+            "has_dashscope_api_key": has_api_key,
+            "use_milvus": use_milvus
         },
-        "vector_store": {
-            "exists": vector_store_exists
-        }
+        "vector_store": vector_store_info
     }
 
 if __name__ == "__main__":

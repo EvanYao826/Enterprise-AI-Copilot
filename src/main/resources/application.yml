@@ -8,12 +8,12 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:ai_knowledge_db}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
     username: ${DB_USER:root}
-    password: ${DB_PASSWORD:CHANGE_ME} # 通过环境变量配置
+    password: ${DB_PASSWORD:123456} # 通过环境变量配置
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:192.168.150.101}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:} # 可选，如有密码则通过环境变量配置
+      password: ${REDIS_PASSWORD:your_strong_password} # 可选，如有密码则通过环境变量配置
       database: 0
   servlet:
     multipart:
