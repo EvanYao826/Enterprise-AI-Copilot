@@ -242,30 +242,30 @@ export default function Chat() {
     setLoading(true);
 
     try {
+      // 使用非流式API
       const response = await chatAPI.sendMessage({
         userId,
         conversationId: currentConversation.id,
         content: inputMessage
       });
-      setMessages(prev => [...prev, response.data]);
-      
-      // 如果是第一条消息，刷新会话列表以获取生成的标题
-      if (messages.length === 0) {
-        // 给一点时间让后台异步生成标题
-        setTimeout(async () => {
-          const res = await chatAPI.getConversations(userId);
-          const updatedList = res.data || [];
-          setConversations(updatedList);
-          
-          const updatedConv = updatedList.find(c => c.id === currentConversation.id);
-          if (updatedConv) {
-            setCurrentConversation(updatedConv);
-          }
-        }, 2000);
-      }
+
+      // 添加AI响应到消息列表
+      const aiMessage = {
+        id: Date.now() + 1,
+        conversationId: currentConversation.id,
+        role: 'assistant',
+        content: response.data.content,
+        sources: response.data.sources,
+        createTime: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+      setLoading(false);
+
+      // 刷新会话列表
+      loadConversations();
     } catch (err) {
       console.error('发送消息失败:', err);
-    } finally {
       setLoading(false);
     }
   };
@@ -370,21 +370,12 @@ export default function Chat() {
                       </div>
                       <div className="message-body">
                         {msg.content}
+                        {msg.isStreaming && <span className="typing-cursor">▋</span>}
                         {msg.role === 'assistant' && msg.sources && renderSources(msg.sources)}
                       </div>
                     </div>
                   </div>
                 ))
-              )}
-              {loading && (
-                <div className="message-row assistant">
-                  <div className="message-content-wrapper">
-                    <div className="message-avatar">🤖</div>
-                    <div className="message-body">
-                      <span className="typing">正在思考...</span>
-                    </div>
-                  </div>
-                </div>
               )}
               <div ref={messagesEndRef} />
             </div>

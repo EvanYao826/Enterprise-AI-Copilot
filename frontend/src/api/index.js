@@ -115,6 +115,70 @@ export const chatAPI = {
   getConversations: (userId) =>
     api.get(`/chat/conversations?userId=${userId}`),
   sendMessage: (data) => api.post('/chat/messages', data),
+  sendMessageStream: async (data, onMessage, onError, onComplete) => {
+    try {
+      // 获取JWT token
+      const token = getCookie('accessToken');
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // 添加Authorization header
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      console.log('Sending streaming request with token:', token ? 'present' : 'missing');
+      const response = await fetch('/api/chat/stream/messages', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(data),
+      });
+
+      console.log('Streaming response status:', response.status, response.statusText);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Streaming request failed:', response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status}: ${errorText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('ReadableStream not supported');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          if (onComplete) onComplete();
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.substring(6).trim();
+            if (jsonStr) {
+              try {
+                const response = JSON.parse(jsonStr);
+                onMessage(response);
+              } catch (error) {
+                console.error('Failed to parse SSE message:', error, jsonStr);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (onError) onError(error);
+    }
+  },
   getMessages: (conversationId) =>
     api.get(`/chat/messages?conversationId=${conversationId}`),
   deleteConversation: (id) => api.delete(`/chat/conversations/${id}`),

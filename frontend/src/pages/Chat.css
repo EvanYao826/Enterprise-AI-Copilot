@@ -461,6 +461,22 @@
   font-style: italic;
 }
 
+/* Typing cursor for streaming messages */
+.typing-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background-color: #333;
+  margin-left: 2px;
+  animation: blink 1s infinite;
+  vertical-align: middle;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* Hide scrollbar for input textarea */
 .chat-input-area textarea::-webkit-scrollbar {
   display: none;

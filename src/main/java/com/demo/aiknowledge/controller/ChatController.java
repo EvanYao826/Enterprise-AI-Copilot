@@ -47,4 +47,9 @@ public class ChatController {
     public Result<Conversation> updateConversation(@PathVariable Long id, @RequestBody Conversation conversation) {
         return Result.success(chatService.updateConversation(id, conversation.getTitle(), conversation.getIsPinned()));
     }
+
+    @GetMapping("/test-auth")
+    public Result<String> testAuth() {
+        return Result.success("Authentication successful - you have USER role access");
+    }
 }

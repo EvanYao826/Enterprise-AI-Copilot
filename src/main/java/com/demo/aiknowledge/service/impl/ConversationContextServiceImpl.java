@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
+ *
  * 对话上下文服务实现
  * 实现短期记忆（Redis缓存）和长期记忆（数据库）管理
  */
@@ -44,32 +45,37 @@ public class ConversationContextServiceImpl implements ConversationContextServic
     public List<Message> getConversationContext(Long conversationId, int maxMessages) {
         String cacheKey = CacheConfig.CacheConstants.KEY_CONVERSATION_CONTEXT + conversationId;
 
-        // 1. 先查Redis短期记忆（最近10轮对话）
-        List<Message> cachedMessages = cacheService.get(
+        // 1. 先查 Redis (获取原始 Object 列表，避免直接强转泛型导致 ClassCastException)
+        // 注意：这里泛型指定为 List.class，内部元素会是 LinkedHashMap
+        List<Object> cachedRawObjects = cacheService.get(
                 CacheConfig.CacheConstants.CACHE_CONVERSATION_CONTEXT,
                 cacheKey,
                 List.class
         );
 
-        if (cachedMessages != null && !cachedMessages.isEmpty()) {
-            log.debug("Retrieved conversation context from cache - conversationId: {}, messages: {}",
-                    conversationId, cachedMessages.size());
-            return limitMessages(cachedMessages, maxMessages);
+        if (cachedRawObjects != null && !cachedRawObjects.isEmpty()) {
+            log.debug("Retrieved conversation context from cache - conversationId: {}, raw size: {}",
+                    conversationId, cachedRawObjects.size());
+
+            // 【核心修复】手动将 List<Object> (内部是 LinkedHashMap) 转换为 List<Message>
+            List<Message> convertedMessages = convertToMessageList(cachedRawObjects);
+
+            if (!convertedMessages.isEmpty()) {
+                return limitMessages(convertedMessages, maxMessages);
+            }
         }
 
-        // 2. 缓存未命中，从数据库获取
+        // 2. 缓存未命中或转换失败，从数据库获取
+        log.debug("Cache miss or conversion failed, fetching from DB - conversationId: {}", conversationId);
         List<Message> messages = messageMapper.selectList(
                 new LambdaQueryWrapper<Message>()
                         .eq(Message::getConversationId, conversationId)
                         .orderByDesc(Message::getCreateTime)
-                        .last("LIMIT " + MAX_WINDOW_SIZE)
+                        .last("LIMIT " + Math.max(maxMessages, DEFAULT_WINDOW_SIZE))
         );
 
-        // 按时间正序排序
-        messages.sort(Comparator.comparing(Message::getCreateTime));
-
-        // 3. 回填缓存
-        if (!messages.isEmpty()) {
+        if (messages != null && !messages.isEmpty()) {
+            // 回写缓存 (存入实体对象，Redis 序列化器会处理，但读取时仍可能变 Map，所以读取端必须兼容)
             cacheService.set(
                     CacheConfig.CacheConstants.CACHE_CONVERSATION_CONTEXT,
                     cacheKey,
@@ -77,12 +83,41 @@ public class ConversationContextServiceImpl implements ConversationContextServic
                     CacheConfig.CacheConstants.TTL_CONVERSATION_CONTEXT,
                     TimeUnit.SECONDS
             );
-            log.debug("Cached conversation context - conversationId: {}, messages: {}",
-                    conversationId, messages.size());
+            return limitMessages(messages, maxMessages);
         }
 
-        return limitMessages(messages, maxMessages);
+        return new ArrayList<>();
     }
+
+
+    /**
+     * 安全地将缓存中的 Object 列表转换为 Message 实体列表
+     * 解决 Redis 读取后变成 LinkedHashMap 导致强转失败的问题
+     */
+    private List<Message> convertToMessageList(List<Object> rawObjects) {
+        List<Message> result = new ArrayList<>();
+        for (Object obj : rawObjects) {
+            if (obj instanceof Message) {
+                // 如果已经是 Message 类型（极少情况，取决于序列化配置）
+                result.add((Message) obj);
+            } else if (obj instanceof Map) {
+                try {
+                    // 核心逻辑：使用 ObjectMapper 将 Map 转换为 Message 实体
+                    Message message = objectMapper.convertValue(obj, Message.class);
+                    result.add(message);
+                } catch (IllegalArgumentException e) {
+                    log.error("Failed to convert cache map to Message entity: {}", obj, e);
+                    // 忽略单个转换错误的消息，防止整个流程崩溃
+                }
+            } else {
+                log.warn("Unexpected object type in conversation cache: {}", obj.getClass());
+            }
+        }
+        return result;
+    }
+
+
+
 
     @Override
     @Transactional

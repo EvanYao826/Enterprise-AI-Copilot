@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from core.parser import DocumentParser
 from core.vector_store import VectorStoreManager
@@ -208,6 +209,100 @@ async def ask_question(request: ChatRequest):
         )
         # 不返回具体错误信息，避免泄露内部实现细节
         raise HTTPException(status_code=500, detail="问答处理失败")
+
+@router.post("/ask/stream")
+async def ask_question_stream(request: ChatRequest):
+    """
+    流式问答接口 (Server-Sent Events)
+    """
+    start_time = time.time()
+
+    async def event_generator():
+        try:
+            logger.info(f"Streaming question: {request.question}, username: {request.username}")
+
+            # 处理身份相关问题
+            lower_question = request.question.lower()
+            identity_keywords = ["我是谁", "我叫什么", "我的名字", "我的身份"]
+            if any(keyword in lower_question for keyword in identity_keywords) and request.username:
+                logger.info(f"Streaming identity answer for user: {request.username}")
+                answer = f"你是 {request.username}，是本系统的注册用户。"
+                # 流式返回身份回答
+                for char in answer:
+                    yield f"data: {json.dumps({'type': 'token', 'content': char})}\n\n"
+                yield f"data: {json.dumps({'type': 'end', 'content': answer})}\n\n"
+                return
+
+            # 1. 向量搜索召回相关文档
+            docs = vector_store.search(request.question, k=3)
+            logger.info(f"Found {len(docs)} relevant documents for streaming")
+
+            # 2. 提取来源信息
+            sources = []
+            seen_docs = set()
+
+            for doc in docs:
+                source = doc.metadata.get("source")
+                doc_id = doc.metadata.get("doc_id")
+
+                unique_key = str(doc_id) if doc_id else source
+                if unique_key in seen_docs:
+                    continue
+                seen_docs.add(unique_key)
+
+                source_info = {
+                    "source": source,
+                    "doc_id": doc_id,
+                    "page": doc.metadata.get("page")
+                }
+                if source_info["source"]:
+                    source_info["doc_name"] = os.path.basename(source_info["source"])
+                    if source_info["source"].startswith(('http://', 'https://')):
+                        source_info["doc_name"] = source_info["source"].split('/')[-1]
+                        if '?' in source_info["doc_name"]:
+                            source_info["doc_name"] = source_info["doc_name"].split('?')[0]
+
+                sources.append(source_info)
+
+            # 发送来源信息
+            yield f"data: {json.dumps({'type': 'sources', 'content': sources})}\n\n"
+
+            # 3. 调用流式 LLM 生成回答
+            for chunk in llm_service.get_answer_stream(request.question, docs, request.context):
+                yield f"data: {chunk}\n\n"
+
+            process_time = time.time() - start_time
+            logger.info(
+                json.dumps({
+                    "method": "POST",
+                    "path": "/api/ask/stream",
+                    "status_code": 200,
+                    "process_time": process_time
+                })
+            )
+
+        except Exception as e:
+            process_time = time.time() - start_time
+            logger.error(f"Error in streaming question: {str(e)}")
+            logger.info(
+                json.dumps({
+                    "method": "POST",
+                    "path": "/api/ask/stream",
+                    "status_code": 500,
+                    "process_time": process_time
+                })
+            )
+            yield f"data: {json.dumps({'type': 'error', 'content': '流式问答处理失败'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
+        }
+    )
 
 @router.post("/delete")
 async def delete_document(request: ParseRequest):

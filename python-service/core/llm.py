@@ -1,4 +1,6 @@
 import os
+import json
+from typing import AsyncGenerator, Generator
 from langchain_community.llms import Tongyi
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -14,7 +16,12 @@ class LLMService:
         else:
             # 使用 qwen-plus 模型，效果比 turbo 好，适合知识库问答
             # 如果需要更强的推理能力，可以使用 qwen-max
-            self.llm = Tongyi(model_name="qwen-plus", api_key=api_key)
+            # 启用流式输出
+            self.llm = Tongyi(
+                model_name="qwen-plus",
+                api_key=api_key,
+                streaming=True  # 启用流式输出
+            )
 
         # 优化后的 Prompt 模板
         # 支持对话上下文和知识库上下文
@@ -90,6 +97,57 @@ class LLMService:
         except Exception as e:
             print(f"LLM Error: {e}")
             return "抱歉，AI服务暂时不可用，请稍后再试。"
+
+    """
+     * 流式获取 LLM 的回答
+     * @param question 用户问题
+     * @param context_docs 上下文文档列表
+     * @param conversation_context 对话上下文（可选）
+     * @return 流式生成器，逐个token返回
+     * """
+    def get_answer_stream(self, question: str, context_docs: list, conversation_context: str = "") -> Generator[str, None, None]:
+        if not self.llm:
+            # 当没有API密钥时，返回错误信息
+            yield json.dumps({"type": "error", "content": "未配置API密钥"})
+            return
+
+        # 处理知识库上下文
+        if not context_docs:
+            knowledge_context = "（无相关知识库信息）"
+        else:
+            knowledge_context = "\n\n".join([doc.page_content for doc in context_docs])
+
+        # 处理对话上下文
+        if not conversation_context or conversation_context.strip() == "":
+            conversation_context = "（无对话历史）"
+
+        # 构建处理链
+        chain = (
+            self.prompt
+            | self.llm
+            | StrOutputParser()
+        )
+
+        try:
+            # 发送开始信号
+            yield json.dumps({"type": "start", "content": ""})
+
+            # 流式调用
+            full_response = ""
+            for chunk in chain.stream({
+                "conversation_context": conversation_context,
+                "knowledge_context": knowledge_context,
+                "question": question
+            }):
+                full_response += chunk
+                yield json.dumps({"type": "token", "content": chunk})
+
+            # 发送结束信号
+            yield json.dumps({"type": "end", "content": full_response})
+
+        except Exception as e:
+            print(f"LLM Stream Error: {e}")
+            yield json.dumps({"type": "error", "content": "AI服务暂时不可用"})
 
     def generate_title(self, question: str) -> str:
         if not self.llm:
