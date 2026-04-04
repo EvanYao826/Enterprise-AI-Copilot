@@ -163,8 +163,10 @@ public class AiServiceImpl implements AiService {
             } catch (Exception e) {
                 // 捕获网络层面的异常（如 ConnectionRefused, Timeout, UnknownHost）
                 log.error(">>> [AI Service] 网络调用失败！无法连接到 Python 服务。URL: {}", url, e);
-                // 直接抛出异常，中断流程，让上层知道出错了
-                throw new RuntimeException("AI 服务连接失败，请检查 Python 服务是否启动及网络配置。详情：" + e.getMessage(), e);
+                // 返回友好的错误响应，不暴露技术细节
+                aiResponse.setAnswer("抱歉，AI服务暂时不可用，请稍后再试。");
+                aiResponse.setSources(null);
+                return aiResponse;
             }
 
             log.info("<<< [AI Service] 响应状态码: {}", response.getStatusCode());
@@ -177,7 +179,10 @@ public class AiServiceImpl implements AiService {
                 // 检查 Python 服务是否返回了预期的 answer 字段
                 if (!body.containsKey("answer")) {
                     log.error(">>> [AI Service] Python 服务返回数据格式错误，缺少 'answer' 字段。完整响应：{}", body);
-                    throw new RuntimeException("AI 服务返回数据格式异常");
+                    // 返回友好的错误响应，不暴露技术细节
+                    aiResponse.setAnswer("抱歉，AI服务返回异常，请稍后再试。");
+                    aiResponse.setSources(null);
+                    return aiResponse;
                 }
 
                 aiResponse.setAnswer((String) body.get("answer"));
@@ -209,7 +214,10 @@ public class AiServiceImpl implements AiService {
             } else {
                 // 处理非 2xx 状态码 (如 404, 500)
                 log.error(">>> [AI Service] Python 服务返回错误状态码: {}, 响应体：{}", response.getStatusCode(), response.getBody());
-                throw new RuntimeException("AI 服务处理失败，状态码：" + response.getStatusCode());
+                // 返回友好的错误响应，不暴露技术细节
+                aiResponse.setAnswer("抱歉，AI服务暂时不可用，请稍后再试。");
+                aiResponse.setSources(null);
+                return aiResponse;
             }
 
         } catch (RuntimeException e) {
@@ -218,7 +226,10 @@ public class AiServiceImpl implements AiService {
         } catch (Exception e) {
             // 捕获其他未知异常
             log.error(">>> [AI Service] 发生未知异常", e);
-            throw new RuntimeException("AI 服务内部错误：" + e.getMessage(), e);
+            // 返回友好的错误响应，不暴露技术细节
+            aiResponse.setAnswer("抱歉，AI服务暂时不可用，请稍后再试。");
+            aiResponse.setSources(null);
+            return aiResponse;
         }
     }
 

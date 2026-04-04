@@ -69,8 +69,8 @@ class VectorStoreManager:
                 },
                 # 自动创建集合（如果不存在）
                 auto_id=True,
-                # 启用分区（按doc_id分区，便于删除）
-                partition_key_field="doc_id" if hasattr(Milvus, 'partition_key_field') else None
+                # 启用分区（按doc_id分区，便于删除）- Milvus 2.4+支持
+                partition_key_field="doc_id"
             )
 
             print(f"Milvus collection '{self.collection_name}' ready")
