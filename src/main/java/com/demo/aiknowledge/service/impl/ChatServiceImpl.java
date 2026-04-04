@@ -84,7 +84,7 @@ public class ChatServiceImpl implements ChatService {
         // 检查是否为第一条消息，如果是则生成标题
         Long msgCount = messageMapper.selectCount(new LambdaQueryWrapper<Message>()
                 .eq(Message::getConversationId, conversationId));
-        if (msgCount <= 1) { // 只有刚刚插入的这一条
+        if (msgCount == 1) { // 明确判断是否为第一条消息
              // 异步生成标题，避免阻塞
              aiService.generateTitle(conversationId, content);
         }

@@ -59,8 +59,7 @@ async def parse_document(request: ParseRequest):
     start_time = time.time()
     try:
         # 判断 file_path 是 URL 还是本地路径
-        is_url = re.match(r'^https?://', request.file_path) is not None or \
-                 re.match(r'^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/', request.file_path) is not None
+        is_url = request.file_path.startswith('http://') or request.file_path.startswith('https://')
         
         if not is_url and not os.path.exists(request.file_path):
             logger.warning(f"File not found: {request.file_path}")

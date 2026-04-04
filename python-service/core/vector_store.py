@@ -7,15 +7,18 @@ from langchain_core.documents import Document
 from pymilvus import connections, utility
 
 class VectorStoreManager:
-    def __init__(self, persist_directory="./faiss_index", use_milvus=True):
+    def __init__(self, persist_directory="./faiss_index", use_milvus=None):
         """
         初始化向量存储管理器
 
         Args:
             persist_directory: FAISS持久化目录（仅当use_milvus=False时使用）
-            use_milvus: 是否使用Milvus（默认True）
+            use_milvus: 是否使用Milvus（默认从环境变量读取，默认值为True）
         """
         self.persist_directory = persist_directory
+        # 从环境变量读取use_milvus配置，如果未设置则默认为True
+        if use_milvus is None:
+            use_milvus = os.getenv("USE_MILVUS", "true").lower() == "true"
         self.use_milvus = use_milvus
         self.collection_name = "ai_knowledge_collection"
         self.vector_store = None
@@ -176,8 +179,10 @@ class VectorStoreManager:
             try:
                 print(f"Deleting document with doc_id: {doc_id} from Milvus")
 
-                # 构建删除表达式
-                delete_expr = f'doc_id == {doc_id}'
+                # 构建删除表达式（使用类型转换确保安全性）
+                if not isinstance(doc_id, int):
+                    raise ValueError(f"doc_id must be an integer, got {type(doc_id)}")
+                delete_expr = f'doc_id in [{doc_id}]'
 
                 # 执行删除
                 result = self.vector_store.delete(expr=delete_expr)

@@ -118,8 +118,8 @@ public class AiServiceImpl implements AiService {
         log.info("User question: {}, userId: {}", question, userId);
         AiResponse aiResponse = new AiResponse();
 
-        // 生成缓存键
-        String cacheKey = question.trim().toLowerCase();
+        // 生成缓存键（包含userId，避免不同用户共享缓存导致数据泄露）
+        String cacheKey = "ai:answer:" + (userId != null ? userId : "anonymous") + ":" + question.trim().toLowerCase();
 
         try {
             // 1. 检查缓存（使用新的缓存服务）
