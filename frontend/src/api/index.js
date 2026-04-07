@@ -114,7 +114,7 @@ export const chatAPI = {
     api.post(`/chat/conversations?userId=${userId}&title=${title || ''}`),
   getConversations: (userId) =>
     api.get(`/chat/conversations?userId=${userId}`),
-  sendMessage: (data) => api.post('/chat/messages', data),
+  sendMessage: (data, config) => api.post('/chat/messages', data, config),
   sendMessageStream: async (data, onMessage, onError, onComplete) => {
     try {
       // 获取JWT token

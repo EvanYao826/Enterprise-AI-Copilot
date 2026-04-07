@@ -16,6 +16,8 @@ export default function Chat() {
   const [editTitle, setEditTitle] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConversationId, setDeleteConversationId] = useState(null);
+  const [abortController, setAbortController] = useState(null);
+  const [abortedRequests, setAbortedRequests] = useState(new Set());
   const messagesEndRef = useRef(null);
   const menuRef = useRef(null);
 
@@ -240,9 +242,27 @@ export default function Chat() {
       createTime: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // 创建AI思考中的消息
+    const thinkingMessageId = Date.now() + 1;
+    const thinkingMessage = {
+      id: thinkingMessageId,
+      conversationId: currentConversation.id,
+      role: 'assistant',
+      content: '',
+      isStreaming: true,
+      createTime: new Date().toISOString()
+    };
+
+    // 生成唯一的请求ID
+    const requestId = Date.now() + Math.random();
+
+    setMessages(prev => [...prev, userMessage, thinkingMessage]);
     setInputMessage('');
     setLoading(true);
+
+    // 创建AbortController用于中断
+    const controller = new AbortController();
+    setAbortController(controller);
 
     try {
       // 使用非流式API
@@ -250,11 +270,19 @@ export default function Chat() {
         userId,
         conversationId: currentConversation.id,
         content: inputMessage
+      }, {
+        signal: controller.signal
       });
 
-      // 添加AI响应到消息列表
+      // 检查请求是否已被中断
+      if (abortedRequests.has(requestId)) {
+        console.log('Request was aborted, skipping response processing');
+        return;
+      }
+
+      // 替换思考消息为完整响应
       const aiMessage = {
-        id: Date.now() + 1,
+        id: thinkingMessageId,
         conversationId: currentConversation.id,
         role: 'assistant',
         content: response.data.content,
@@ -262,14 +290,55 @@ export default function Chat() {
         createTime: new Date().toISOString()
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages(prev => prev.map(msg => msg.id === thinkingMessageId ? aiMessage : msg));
       setLoading(false);
+      setAbortController(null);
 
       // 刷新会话列表
       loadConversations();
     } catch (err) {
-      console.error('发送消息失败:', err);
+      if (err.name === 'AbortError') {
+        // 用户手动中断
+        const abortedMessage = {
+          id: thinkingMessageId,
+          conversationId: currentConversation.id,
+          role: 'assistant',
+          content: '已终止回答',
+          createTime: new Date().toISOString()
+        };
+        setMessages(prev => prev.map(msg => msg.id === thinkingMessageId ? abortedMessage : msg));
+        // 将请求ID添加到已中断集合
+        setAbortedRequests(prev => new Set(prev).add(requestId));
+      } else {
+        console.error('发送消息失败:', err);
+      }
       setLoading(false);
+      setAbortController(null);
+    }
+  };
+
+  const handleStopGeneration = () => {
+    if (abortController) {
+      abortController.abort();
+      // 立即更新UI，显示已终止回答
+      setMessages(prev => {
+        // 找到最后一条AI消息（思考中状态）
+        const lastAssistantMessageIndex = prev.lastIndexOf(
+          prev.find(msg => msg.role === 'assistant' && msg.isStreaming)
+        );
+        if (lastAssistantMessageIndex !== -1) {
+          const updatedMessages = [...prev];
+          updatedMessages[lastAssistantMessageIndex] = {
+            ...updatedMessages[lastAssistantMessageIndex],
+            content: '已终止回答',
+            isStreaming: false
+          };
+          return updatedMessages;
+        }
+        return prev;
+      });
+      setLoading(false);
+      setAbortController(null);
     }
   };
 
@@ -396,12 +465,23 @@ export default function Chat() {
                       }
                     }}
                     placeholder="给 AI 发送消息..."
-                    disabled={loading}
                     rows={1}
                   />
-                  <button type="submit" className="send-btn" disabled={loading || !inputMessage.trim()}>
-                    ➤
-                  </button>
+                  <div className="input-buttons">
+                    {loading && (
+                      <button 
+                        type="button" 
+                        className="stop-btn" 
+                        onClick={handleStopGeneration}
+                        title="停止生成"
+                      >
+                        ⏹️
+                      </button>
+                    )}
+                    <button type="submit" className="send-btn" disabled={!inputMessage.trim()}>
+                      ➤
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
