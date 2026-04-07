@@ -427,3 +427,42 @@
   background-color: #fff1f0;
   color: #ff4d4f;
 }
+
+/* Modal Buttons */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.modal-btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #d9d9d9;
+  transition: all 0.3s;
+}
+
+.modal-btn.cancel {
+  background-color: white;
+  color: #666;
+}
+
+.modal-btn.cancel:hover {
+  border-color: #40a9ff;
+  color: #40a9ff;
+}
+
+.modal-btn.confirm {
+  background-color: #40a9ff;
+  color: white;
+  border-color: #40a9ff;
+}
+
+.modal-btn.confirm:hover {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}

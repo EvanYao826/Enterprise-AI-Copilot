@@ -11,7 +11,13 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConversationId, setDeleteConversationId] = useState(null);
   const messagesEndRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     document.title = 'AI 知识系统-智能对话';
@@ -19,7 +25,6 @@ export default function Chat() {
       document.title = 'AI 知识系统';
     };
   }, []);
-
 
   useEffect(() => {
     if (!userId) {
@@ -106,11 +111,6 @@ export default function Chat() {
     }
   };
 
-  const [menuOpenId, setMenuOpenId] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [editTitle, setEditTitle] = useState('');
-  const menuRef = useRef(null);
-
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
@@ -164,21 +164,34 @@ export default function Chat() {
     }
   };
 
-  const handleDelete = async (id, e) => {
+  const handleDelete = (id, e) => {
     e.stopPropagation();
     setMenuOpenId(null);
-    if (!window.confirm('确定删除此对话吗？')) return;
+    setDeleteConversationId(id);
+    setShowDeleteConfirm(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteConversationId) return;
+    
     try {
-      await chatAPI.deleteConversation(id);
-      setConversations(conversations.filter(c => c.id !== id));
-      if (currentConversation?.id === id) {
+      await chatAPI.deleteConversation(deleteConversationId);
+      setConversations(conversations.filter(c => c.id !== deleteConversationId));
+      if (currentConversation?.id === deleteConversationId) {
         setCurrentConversation(null);
         setMessages([]);
       }
     } catch (err) {
       console.error('删除会话失败:', err);
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteConversationId(null);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setDeleteConversationId(null);
   };
 
   const loadConversations = async () => {
@@ -209,20 +222,10 @@ export default function Chat() {
     }
   };
 
-  const handleDeleteConversation = async (id, e) => {
+  const handleDeleteConversation = (id, e) => {
     e.stopPropagation();
-    if (!confirm('确定删除此对话吗？')) return;
-
-    try {
-      await chatAPI.deleteConversation(id);
-      setConversations(conversations.filter(c => c.id !== id));
-      if (currentConversation?.id === id) {
-        setCurrentConversation(null);
-        setMessages([]);
-      }
-    } catch (err) {
-      console.error('删除会话失败:', err);
-    }
+    setDeleteConversationId(id);
+    setShowDeleteConfirm(true);
   };
 
   const handleSendMessage = async (e) => {
@@ -280,13 +283,12 @@ export default function Chat() {
     <div className="chat-layout">
       {/* Sidebar */}
       <div className="chat-sidebar">
-        <div className="sidebar-logo" onClick={() => navigate('/')}>
-          <h2>🤖 AI Knowledge</h2>
-        </div>
-        
         <div className="sidebar-header">
+          <div className="sidebar-logo" onClick={() => navigate('/')}>
+            <h2>🤖 AI Knowledge</h2>
+          </div>
           <button className="new-chat-btn" onClick={handleCreateConversation}>
-            <span className="new-chat-icon">+</span> 新建对话
+            <span className="new-chat-icon">+</span> 开启新对话
           </button>
         </div>
 
@@ -310,7 +312,6 @@ export default function Chat() {
                 />
               ) : (
                 <span className="conversation-title">
-                  {conv.isPinned && <span className="pin-icon">📌</span>}
                   {conv.title || '新对话'}
                 </span>
               )}
@@ -352,14 +353,16 @@ export default function Chat() {
         {currentConversation ? (
           <>
             <div className="chat-header">
-              {currentConversation.title || '新对话'}
+              <div className="chat-header-left">
+                <h3>{currentConversation.title || '新对话'}</h3>
+              </div>
             </div>
 
             <div className="messages-container">
               {messages.length === 0 ? (
                 <div className="welcome-screen">
-                  <div className="message-avatar" style={{width: 60, height: 60, fontSize: 32, marginBottom: 20}}>🤖</div>
-                  <h1>有什么我可以帮你的吗？</h1>
+                  <div className="welcome-avatar">🤖</div>
+                  <h1>今天有什么可以帮到你？</h1>
                 </div>
               ) : (
                 messages.map((msg, index) => (
@@ -405,6 +408,7 @@ export default function Chat() {
           </>
         ) : (
           <div className="welcome-screen">
+            <div className="welcome-avatar">🤖</div>
             <h1>欢迎使用 AI 知识系统</h1>
             <p>基于 RAG 技术，为您提供精准的企业知识问答服务</p>
             <button className="start-btn" onClick={handleCreateConversation}>
@@ -413,6 +417,28 @@ export default function Chat() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>确认删除</h3>
+            </div>
+            <div className="modal-body">
+              <p>确定删除此对话吗？</p>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn cancel" onClick={handleDeleteCancel}>
+                取消
+              </button>
+              <button className="modal-btn confirm" onClick={handleDeleteConfirm}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

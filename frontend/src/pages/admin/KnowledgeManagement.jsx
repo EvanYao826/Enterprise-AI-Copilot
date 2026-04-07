@@ -7,6 +7,11 @@ export default function KnowledgeManagement() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteDocumentId, setDeleteDocumentId] = useState(null);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messageModalContent, setMessageModalContent] = useState('');
+  const [messageModalTitle, setMessageModalTitle] = useState('提示');
 
   useEffect(() => {
     loadDocuments();
@@ -38,7 +43,9 @@ export default function KnowledgeManagement() {
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      alert('请先选择文件');
+      setMessageModalTitle('提示');
+      setMessageModalContent('请先选择文件');
+      setShowMessageModal(true);
       return;
     }
 
@@ -48,26 +55,51 @@ export default function KnowledgeManagement() {
       setSelectedFile(null);
       document.getElementById('admin-file-input').value = '';
       loadDocuments();
-      alert('上传成功');
+      setMessageModalTitle('成功');
+      setMessageModalContent('上传成功');
+      setShowMessageModal(true);
     } catch (err) {
       console.error('上传文档失败:', err);
-      alert('上传失败: ' + (err.message || '未知错误'));
+      setMessageModalTitle('错误');
+      setMessageModalContent('上传失败: ' + (err.message || '未知错误'));
+      setShowMessageModal(true);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('确定删除此文档吗？')) return;
+  const handleDelete = (id) => {
+    setDeleteDocumentId(id);
+    setShowDeleteConfirm(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteDocumentId) return;
+    
     try {
-      await knowledgeManagementAPI.delete(id);
-      setDocuments(documents.filter(doc => doc.id !== id));
-      alert('删除成功');
+      await knowledgeManagementAPI.delete(deleteDocumentId);
+      setDocuments(documents.filter(doc => doc.id !== deleteDocumentId));
+      setMessageModalTitle('成功');
+      setMessageModalContent('删除成功');
+      setShowMessageModal(true);
     } catch (err) {
       console.error('删除文档失败:', err);
-      alert('删除失败');
+      setMessageModalTitle('错误');
+      setMessageModalContent('删除失败');
+      setShowMessageModal(true);
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteDocumentId(null);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setDeleteDocumentId(null);
+  };
+
+  const handleMessageModalClose = () => {
+    setShowMessageModal(false);
   };
 
   const getStatusBadge = (status) => {
@@ -173,6 +205,47 @@ export default function KnowledgeManagement() {
           </table>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>确认删除</h3>
+            </div>
+            <div className="modal-body">
+              <p>确定删除此文档吗？</p>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn cancel" onClick={handleDeleteCancel}>
+                取消
+              </button>
+              <button className="modal-btn confirm" onClick={handleDeleteConfirm}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Modal */}
+      {showMessageModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>{messageModalTitle}</h3>
+            </div>
+            <div className="modal-body">
+              <p>{messageModalContent}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="modal-btn confirm" onClick={handleMessageModalClose}>
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
