@@ -68,9 +68,7 @@ class VectorStoreManager:
                     "alias": "default"
                 },
                 # 自动创建集合（如果不存在）
-                auto_id=True,
-                # 启用分区（按doc_id分区，便于删除）- Milvus 2.4+支持
-                partition_key_field="doc_id"
+                auto_id=True
             )
 
             print(f"Milvus collection '{self.collection_name}' ready")

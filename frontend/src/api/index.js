@@ -183,6 +183,16 @@ export const chatAPI = {
     api.get(`/chat/messages?conversationId=${conversationId}`),
   deleteConversation: (id) => api.delete(`/chat/conversations/${id}`),
   updateConversation: (id, data) => api.put(`/chat/conversations/${id}`, data),
+  // 临时图片上传
+  uploadImage: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/chat/upload/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  // 查看临时图片
+  viewImage: (id) => api.get(`/chat/view/image/${id}`),
 };
 
 // Knowledge API

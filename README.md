@@ -118,7 +118,14 @@
 | **文档预览** | 来源文档在线预览/下载（七牛云链接） | ✅ 已实现 |
 | **对话管理** | 对话历史查看、置顶、删除、搜索 | ✅ 已实现 |
 
+![image-20260408212035712](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408212035712.png)
+
+!(C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408211810527.png)
+
+![image-20260408221416034](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408221416034.png)
+
 ### 👨‍💼 管理端功能
+
 | 功能模块 | 描述 | 状态 |
 |---------|------|------|
 | **数据仪表盘** | 用户数、文档数、提问趋势、AI 命中率统计 | ✅ 已实现 |
@@ -127,7 +134,12 @@
 | **性能分析** | 响应时间统计、热点问题分析、未命中问题追踪 | ✅ 已实现 |
 | **系统配置** | 通知管理、系统参数配置、用户权限管理 | ✅ 已实现 |
 
+![image-20260408211836871](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408211836871.png)
+
+![image-20260408211856434](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408211856434.png)
+
 ### 🏗️ 系统特性
+
 | 特性 | 描述 | 优势 |
 |------|------|------|
 | **🔍 智能检索** | 基于 Milvus 的语义向量相似度搜索 | 精准匹配，支持复杂查询 |

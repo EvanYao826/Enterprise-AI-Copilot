@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { chatAPI } from '../api';
+import { chatAPI, knowledgeAPI } from '../api';
 import './Chat.css';
 
 export default function Chat() {
@@ -18,8 +18,13 @@ export default function Chat() {
   const [deleteConversationId, setDeleteConversationId] = useState(null);
   const [abortController, setAbortController] = useState(null);
   const [abortedRequests, setAbortedRequests] = useState(new Set());
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [uploadedImageId, setUploadedImageId] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
   const messagesEndRef = useRef(null);
   const menuRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     document.title = 'AI 知识系统-智能对话';
@@ -232,13 +237,21 @@ export default function Chat() {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!inputMessage.trim() || !currentConversation) return;
+    if (!inputMessage.trim() && !uploadedImage) return;
+    if (!currentConversation) return;
+
+    // 构建用户消息内容
+    let messageContent = inputMessage;
+    if (uploadedImage) {
+      messageContent = `[图片: ${uploadedImage.name}]\n${inputMessage}`;
+    }
 
     const userMessage = {
       id: Date.now(),
       conversationId: currentConversation.id,
       role: 'user',
-      content: inputMessage,
+      content: messageContent,
+      imageUrl: uploadedImage?.url,
       createTime: new Date().toISOString()
     };
 
@@ -258,6 +271,8 @@ export default function Chat() {
 
     setMessages(prev => [...prev, userMessage, thinkingMessage]);
     setInputMessage('');
+    setUploadedImage(null);
+    setUploadedImageId(null);
     setLoading(true);
 
     // 创建AbortController用于中断
@@ -265,11 +280,17 @@ export default function Chat() {
     setAbortController(controller);
 
     try {
+      // 构建发送给AI的内容
+      let aiRequestContent = inputMessage;
+      if (uploadedImage && uploadedImageId) {
+        aiRequestContent = `请根据图片内容回答问题。图片ID: ${uploadedImageId}\n图片名称: ${uploadedImage.name}\n图片URL: ${uploadedImage.url}\n问题: ${inputMessage}`;
+      }
+
       // 使用非流式API
       const response = await chatAPI.sendMessage({
         userId,
         conversationId: currentConversation.id,
-        content: inputMessage
+        content: aiRequestContent
       }, {
         signal: controller.signal
       });
@@ -347,6 +368,74 @@ export default function Chat() {
     localStorage.removeItem('userId');
     navigate('/login');
   };
+
+  const handleImageUploadClick = () => {
+    // 触发隐藏的文件输入
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !currentConversation) return;
+
+    // 检查文件类型
+    if (!file.type.startsWith('image/')) {
+      alert('请选择图片文件');
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      // 调用临时图片上传API
+      const result = await chatAPI.uploadImage(file);
+      
+      // 上传成功，显示在输入框上方
+      // result是response.data，其中包含code和data字段
+      const imageData = result.data || result;
+      setUploadedImage({
+        name: file.name,
+        url: `/api/chat/view/image/${imageData.id}`,
+        size: file.size
+      });
+      setUploadedImageId(imageData.id);
+      setUploadingImage(false);
+    } catch (err) {
+      console.error('图片上传失败:', err);
+      alert('图片上传失败: ' + (err.message || '未知错误'));
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setUploadedImage(null);
+    setUploadedImageId(null);
+  };
+
+  const handleImageClick = (imageUrl) => {
+    setPreviewImage(imageUrl);
+  };
+
+  const handleClosePreview = () => {
+    setPreviewImage(null);
+  };
+
+  // 获取Cookie的辅助函数
+  function getCookie(name) {
+    const cookieName = `${name}=`;
+    const decodedCookie = decodeURIComponent(document.cookie);
+    const cookieArray = decodedCookie.split(';');
+    for (let i = 0; i < cookieArray.length; i++) {
+      let cookie = cookieArray[i];
+      while (cookie.charAt(0) === ' ') {
+        cookie = cookie.substring(1);
+      }
+      if (cookie.indexOf(cookieName) === 0) {
+        return cookie.substring(cookieName.length, cookie.length);
+      }
+    }
+    return '';
+  }
 
   return (
     <div className="chat-layout">
@@ -442,6 +531,15 @@ export default function Chat() {
                       </div>
                       <div className="message-body">
                         {msg.content}
+                        {msg.imageUrl && (
+                          <div className="message-image">
+                            <img 
+                              src={msg.imageUrl} 
+                              alt="用户上传的图片" 
+                              onClick={() => handleImageClick(msg.imageUrl)}
+                            />
+                          </div>
+                        )}
                         {msg.isStreaming && <span className="typing-cursor">▋</span>}
                         {msg.role === 'assistant' && msg.sources && renderSources(msg.sources)}
                       </div>
@@ -454,6 +552,24 @@ export default function Chat() {
 
             <div className="input-container">
               <div className="input-wrapper">
+                {/* 上传的图片预览 */}
+                {uploadedImage && (
+                  <div className="uploaded-image-preview">
+                    <div className="image-info">
+                      <span className="image-name">{uploadedImage.name}</span>
+                      <span className="image-size">{Math.round(uploadedImage.size / 1024)}KB</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="remove-image-btn"
+                      onClick={handleRemoveImage}
+                      title="移除图片"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                
                 <form className="chat-input-area" onSubmit={handleSendMessage}>
                   <textarea
                     value={inputMessage}
@@ -464,10 +580,26 @@ export default function Chat() {
                         handleSendMessage(e);
                       }
                     }}
-                    placeholder="给 AI 发送消息..."
+                    placeholder={uploadedImage ? "输入关于图片的问题..." : "给 AI 发送消息..."}
                     rows={1}
                   />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    style={{ display: 'none' }}
+                  />
                   <div className="input-buttons">
+                    <button 
+                      type="button" 
+                      className="upload-btn"
+                      onClick={handleImageUploadClick}
+                      disabled={uploadingImage || uploadedImage}
+                      title="上传图片"
+                    >
+                      📷
+                    </button>
                     {loading && (
                       <button 
                         type="button" 
@@ -478,7 +610,7 @@ export default function Chat() {
                         ⏹️
                       </button>
                     )}
-                    <button type="submit" className="send-btn" disabled={!inputMessage.trim()}>
+                    <button type="submit" className="send-btn" disabled={!inputMessage.trim() && !uploadedImage}>
                       ➤
                     </button>
                   </div>
@@ -517,6 +649,18 @@ export default function Chat() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 图片预览模态框 */}
+      {previewImage && (
+        <div className="image-preview-overlay" onClick={handleClosePreview}>
+          <div className="image-preview-content" onClick={(e) => e.stopPropagation()}>
+            <img src={previewImage} alt="预览图片" />
+          </div>
+          <button className="image-preview-close" onClick={handleClosePreview}>
+            ×
+          </button>
         </div>
       )}
     </div>

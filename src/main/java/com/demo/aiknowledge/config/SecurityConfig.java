@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 // 允许所有/api/admin/login请求
                 .requestMatchers("/api/admin/login").permitAll()
+                // 允许图片访问路径
+                .requestMatchers("/api/chat/view/image/**").permitAll()
                 // 管理员接口需要ADMIN角色
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // 用户接口需要USER或ADMIN角色

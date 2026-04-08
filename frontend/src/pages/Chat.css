@@ -696,6 +696,171 @@
   box-shadow: 0 6px 12px rgba(239, 68, 68, 0.4);
 }
 
+.upload-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal);
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+.upload-btn:hover:not(:disabled).upload-btn:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(59, 130, 246, 0.4);
+}
+
+/* 图片消息样式 */
+.message-content img {
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: 4px;
+  margin-top: 4px;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.message-content img:hover {
+  transform: scale(1.1);
+}
+
+/* 图片预览模态框 */
+.image-preview-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  cursor: pointer;
+}
+
+.image-preview-content {
+  max-width: 90vw;
+  max-height: 90vh;
+  cursor: default;
+}
+
+.image-preview-content img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  cursor: default;
+  transform: none;
+}
+
+.image-preview-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.image-preview-close:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.upload-btn:disabled {
+  background: var(--bg-tertiary);
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
+
+/* 图片消息样式 */
+.message-image {
+  margin-top: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 100%;
+  box-shadow: var(--shadow-sm);
+}
+
+.message-image img {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+}
+
+.message-row.user .message-image {
+  margin-left: auto;
+}
+
+/* 上传图片预览样式 */
+.uploaded-image-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.image-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.image-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.image-size {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.remove-image-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+}
+
+.remove-image-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
 /* ========================================
    Welcome Screen
    ======================================== */

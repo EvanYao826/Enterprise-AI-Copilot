@@ -1,9 +1,15 @@
 import os
 import json
+import requests
 from typing import AsyncGenerator, Generator
 from langchain_community.llms import Tongyi
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from PIL import Image
+import pytesseract
+
+# 配置Tesseract OCR路径
+pytesseract.pytesseract.tesseract_cmd = r'E:/Tesseract-OCR/tesseract.exe'
 
 class LLMService:
     def __init__(self):
@@ -71,6 +77,9 @@ class LLMService:
             # 当没有API密钥时，返回一个友好的默认响应
             return "我是AI知识库助手，很高兴为您服务。由于系统未配置API密钥，我暂时无法提供详细回答。请联系管理员配置DASHSCOPE_API_KEY环境变量以启用完整功能。"
 
+        # 处理包含图片的问题
+        processed_question = self.process_question_with_images(question)
+
         # 处理知识库上下文
         if not context_docs:
             knowledge_context = "（无相关知识库信息）"
@@ -92,7 +101,7 @@ class LLMService:
             return chain.invoke({
                 "conversation_context": conversation_context,
                 "knowledge_context": knowledge_context,
-                "question": question
+                "question": processed_question
             })
         except Exception as e:
             print(f"LLM Error: {e}")
@@ -110,6 +119,9 @@ class LLMService:
             # 当没有API密钥时，返回错误信息
             yield json.dumps({"type": "error", "content": "未配置API密钥"})
             return
+
+        # 处理包含图片的问题
+        processed_question = self.process_question_with_images(question)
 
         # 处理知识库上下文
         if not context_docs:
@@ -137,7 +149,7 @@ class LLMService:
             for chunk in chain.stream({
                 "conversation_context": conversation_context,
                 "knowledge_context": knowledge_context,
-                "question": question
+                "question": processed_question
             }):
                 full_response += chunk
                 yield json.dumps({"type": "token", "content": chunk})
@@ -166,3 +178,62 @@ class LLMService:
         except Exception as e:
             print(f"LLM Title Generation Error: {e}")
             return "New Chat"
+
+    def extract_text_from_image(self, image_url: str) -> str:
+        """
+        从图片URL中提取文字
+        """
+        try:
+            # 处理相对路径，转换为完整URL
+            if image_url.startswith('/api/'):
+                # 使用后端服务地址
+                image_url = f"http://localhost:8080{image_url}"
+            
+            print(f"Downloading image from: {image_url}")
+            
+            # 下载图片
+            response = requests.get(image_url, timeout=10)
+            response.raise_for_status()
+            
+            # 保存到临时文件
+            temp_path = "temp_image.png"
+            with open(temp_path, "wb") as f:
+                f.write(response.content)
+            
+            print(f"Image saved to temp file, size: {len(response.content)} bytes")
+            
+            # 使用OCR提取文字
+            image = Image.open(temp_path)
+            text = pytesseract.image_to_string(image, lang='chi_sim+eng')
+            
+            print(f"OCR result: {text[:100]}...")  # 打印前100个字符
+            
+            # 清理临时文件
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            
+            return text.strip() if text.strip() else "图片中未识别到文字"
+        except Exception as e:
+            print(f"Error extracting text from image: {e}")
+            return f"无法从图片中提取文字: {str(e)}"
+
+    def process_question_with_images(self, question: str) -> str:
+        """
+        处理包含图片URL的问题，提取图片中的文字并添加到问题中
+        """
+        import re
+        # 查找图片URL（支持完整URL和相对路径）
+        image_urls = re.findall(r'图片URL: (/api/[^\n]+)', question)
+        
+        print(f"Found image URLs: {image_urls}")
+        
+        if image_urls:
+            processed_question = question
+            for image_url in image_urls:
+                # 提取图片中的文字
+                image_text = self.extract_text_from_image(image_url)
+                # 将图片文字添加到问题中
+                processed_question += f"\n\n图片内容: {image_text}"
+            return processed_question
+        else:
+            return question
