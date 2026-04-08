@@ -118,11 +118,9 @@
 | **文档预览** | 来源文档在线预览/下载（七牛云链接） | ✅ 已实现 |
 | **对话管理** | 对话历史查看、置顶、删除、搜索 | ✅ 已实现 |
 
-![image-20260408212035712](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408212035712.png)
+![用户端截图1](images/用户端截图1.png)
 
-!(C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408211810527.png)
-
-![image-20260408221416034](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408221416034.png)
+![用户端截图2](images/用户端截图2.png)
 
 ### 👨‍💼 管理端功能
 
