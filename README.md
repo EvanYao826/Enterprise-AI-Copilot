@@ -132,9 +132,9 @@
 | **性能分析** | 响应时间统计、热点问题分析、未命中问题追踪 | ✅ 已实现 |
 | **系统配置** | 通知管理、系统参数配置、用户权限管理 | ✅ 已实现 |
 
-![image-20260408211836871](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408211836871.png)
+![管理端截图1](images/管理端1.png)
 
-![image-20260408211856434](C:\Users\86176\AppData\Roaming\Typora\typora-user-images\image-20260408211856434.png)
+![管理端截图2](images/管理端2.png)
 
 ### 🏗️ 系统特性
 
