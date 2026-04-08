@@ -213,7 +213,10 @@ export default function Chat() {
   const loadMessages = async (conversationId) => {
     try {
       const response = await chatAPI.getMessages(conversationId);
-      setMessages(response.data || []);
+      const messages = response.data || [];
+      // 按createTime排序，确保消息按时间顺序显示
+      messages.sort((a, b) => new Date(a.createTime) - new Date(b.createTime));
+      setMessages(messages);
     } catch (err) {
       console.error('加载消息失败:', err);
     }
