@@ -138,7 +138,7 @@ class VectorStoreManager:
                 self.vector_store.save_local(self.persist_directory)
                 print(f"Added {len(documents)} documents to FAISS")
 
-    def search(self, query: str, k: int = 3, filter_dict: Optional[Dict[str, Any]] = None) -> List[Document]:
+    def search(self, query: str, k: int = 3, filter_dict: Optional[Dict[str, Any]] = None, similarity_threshold: float = 0.7) -> List[Document]:
         """
         相似度搜索
 
@@ -146,6 +146,7 @@ class VectorStoreManager:
             query: 查询文本
             k: 返回结果数量
             filter_dict: 过滤条件（仅Milvus支持）
+            similarity_threshold: 相似度阈值，只有相似度大于此值的文档才返回（0.0-1.0）
         """
         if self.vector_store is None:
             return []
@@ -153,13 +154,35 @@ class VectorStoreManager:
         try:
             if self.use_milvus and filter_dict:
                 # Milvus支持过滤查询
-                return self.vector_store.similarity_search(query, k=k, filter=filter_dict)
+                docs_with_scores = self.vector_store.similarity_search_with_score(query, k=k, filter=filter_dict)
             else:
                 # FAISS或无条件查询
-                return self.vector_store.similarity_search(query, k=k)
+                docs_with_scores = self.vector_store.similarity_search_with_score(query, k=k)
+
+            # 过滤掉相似度低于阈值的文档
+            filtered_docs = []
+            for doc, score in docs_with_scores:
+                # 注意：不同向量数据库的相似度分数范围可能不同
+                # FAISS通常返回余弦相似度（-1到1），Milvus可能返回距离（越小越相似）
+                # 这里假设返回的是相似度分数（越大越相似）
+                if score >= similarity_threshold:
+                    filtered_docs.append(doc)
+                    print(f"Document similarity score: {score}")
+                else:
+                    print(f"Document filtered out due to low similarity: {score}")
+
+            return filtered_docs
         except Exception as e:
             print(f"Search error: {e}")
-            return []
+            # 如果 similarity_search_with_score 失败，回退到普通搜索
+            try:
+                if self.use_milvus and filter_dict:
+                    return self.vector_store.similarity_search(query, k=k, filter=filter_dict)
+                else:
+                    return self.vector_store.similarity_search(query, k=k)
+            except Exception as e2:
+                print(f"Fallback search also failed: {e2}")
+                return []
 
     def delete_document(self, doc_id: int):
         """
