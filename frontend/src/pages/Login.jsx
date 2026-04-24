@@ -42,7 +42,14 @@ export default function Login() {
         const { accessToken, refreshToken, ...userInfo } = userData;
         localStorage.setItem('user', JSON.stringify(userInfo.user));
         localStorage.setItem('userId', userInfo.user.id);
-        navigate('/chat');
+        
+        // 使用replace选项，避免登录页面留在历史堆栈中
+        navigate('/chat', { replace: true });
+        
+        // 替换整个历史记录，使后退按钮不可用
+        setTimeout(() => {
+          window.history.replaceState(null, null, window.location.href);
+        }, 100);
       } else {
         setError('登录失败，服务器返回数据异常');
       }

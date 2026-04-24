@@ -28,7 +28,13 @@ export default function AdminLogin() {
       const response = await adminAuthAPI.login(formData.username, formData.password);
       localStorage.setItem('adminToken', response.data.accessToken);
       localStorage.setItem('adminInfo', JSON.stringify(response.data.admin));
-      navigate('/admin'); // 修正跳转路径
+      // 使用replace选项，避免登录页面留在历史堆栈中
+      navigate('/admin', { replace: true }); // 修正跳转路径
+      
+      // 替换整个历史记录，使后退按钮不可用
+      setTimeout(() => {
+        window.history.replaceState(null, null, window.location.href);
+      }, 100);
     } catch (err) {
       setError(err.message || '登录失败，请检查用户名和密码');
     } finally {
