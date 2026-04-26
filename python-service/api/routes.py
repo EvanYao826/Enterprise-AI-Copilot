@@ -251,9 +251,9 @@ async def ask_question(request: ChatRequest):
             should_return_sources_flag = should_return_sources(request.question)
 
             # 2. 总是搜索向量数据库，但设置相似度阈值
-            # 相似度阈值设为0.85，只有高度相关的文档才返回
-            docs = vector_store.search(request.question, k=3, similarity_threshold=0.85)
-            logger.info(f"Found {len(docs)} documents from vector search (threshold: 0.85), should_return_sources: {should_return_sources_flag}")
+            # 相似度阈值设为0.75，平衡相关性和召回率
+            docs = vector_store.search(request.question, k=3, similarity_threshold=0.75)
+            logger.info(f"Found {len(docs)} documents from vector search (threshold: 0.75), should_return_sources: {should_return_sources_flag}")
 
             sources = []
 
@@ -369,8 +369,8 @@ async def ask_question_stream(request: ChatRequest):
                 return
 
             # 1. 总是搜索向量数据库，但设置相似度阈值
-            docs = vector_store.search(request.question, k=3, similarity_threshold=0.85)
-            logger.info(f"Found {len(docs)} documents for streaming (threshold: 0.85)")
+            docs = vector_store.search(request.question, k=3, similarity_threshold=0.75)
+            logger.info(f"Found {len(docs)} documents for streaming (threshold: 0.75)")
 
             sources = []
 

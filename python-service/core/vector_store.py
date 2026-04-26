@@ -162,7 +162,7 @@ class VectorStoreManager:
                 self.vector_store.save_local(self.persist_directory)
                 config.logger.info(f"Added {len(documents)} documents to FAISS")
 
-    def search(self, query: str, k: int = 3, filter_dict: Optional[Dict[str, Any]] = None, similarity_threshold: float = 0.7, use_rerank: bool = True) -> List[Document]:
+    def search(self, query: str, k: int = 3, filter_dict: Optional[Dict[str, Any]] = None, similarity_threshold: float = 0.75, use_rerank: bool = True) -> List[Document]:
         """
         相似度搜索
 
@@ -173,19 +173,26 @@ class VectorStoreManager:
             similarity_threshold: 相似度阈值，只有相似度大于此值的文档才返回（0.0-1.0）
             use_rerank: 是否使用Rerank进行结果重排序
         """
+        import time
+        start_time = time.time()
+        
         if self.vector_store is None:
+            config.logger.info(f"Search completed in {time.time() - start_time:.4f}s, no vector store available")
             return []
 
         try:
             # 初始检索数量应该比最终返回的多，以便Rerank有足够的候选
             initial_k = k * 3 if use_rerank and self.reranker else k
 
+            search_start = time.time()
             if self.use_milvus and filter_dict:
                 # Milvus支持过滤查询
                 docs_with_scores = self.vector_store.similarity_search_with_score(query, k=initial_k, filter=filter_dict)
             else:
                 # FAISS或无条件查询
                 docs_with_scores = self.vector_store.similarity_search_with_score(query, k=initial_k)
+            search_time = time.time() - search_start
+            config.logger.info(f"Vector search completed in {search_time:.4f}s, found {len(docs_with_scores) if isinstance(docs_with_scores, list) else 0} documents")
 
             # 提取文档
             if isinstance(docs_with_scores, list):
@@ -207,18 +214,22 @@ class VectorStoreManager:
                         config.logger.debug(f"Document similarity score: {score}")
                     else:
                         config.logger.debug(f"Document filtered out due to low similarity: {score}")
+                config.logger.info(f"Search completed in {time.time() - start_time:.4f}s, returning {len(filtered_docs)} documents")
                 return filtered_docs
 
             # 使用Rerank进行重排序
             try:
+                rerank_start = time.time()
                 rerank_results = self.reranker.rerank(query, docs, top_k=k)
+                rerank_time = time.time() - rerank_start
+                config.logger.info(f"Rerank completed in {rerank_time:.4f}s, top {len(rerank_results)} results")
 
                 # 提取重排序后的文档
                 reranked_docs = [r.document for r in rerank_results]
 
                 # Rerank已经按相关性排序，这里不再应用similarity_threshold
                 # 但如果需要可以在这里添加额外的过滤逻辑
-                config.logger.info(f"Rerank completed, returning {len(reranked_docs)} documents")
+                config.logger.info(f"Search completed in {time.time() - start_time:.4f}s, returning {len(reranked_docs)} documents")
 
                 return reranked_docs
 
@@ -229,18 +240,24 @@ class VectorStoreManager:
                 for doc, score in docs_with_scores:
                     if score >= similarity_threshold:
                         filtered_docs.append(doc)
+                config.logger.info(f"Search completed in {time.time() - start_time:.4f}s (Rerank failed, fallback to vector search), returning {len(filtered_docs)} documents")
                 return filtered_docs
 
         except Exception as e:
             config.logger.error(f"Search error: {e}")
             # 如果 similarity_search_with_score 失败，回退到普通搜索
             try:
+                fallback_start = time.time()
                 if self.use_milvus and filter_dict:
-                    return self.vector_store.similarity_search(query, k=k, filter=filter_dict)
+                    result = self.vector_store.similarity_search(query, k=k, filter=filter_dict)
                 else:
-                    return self.vector_store.similarity_search(query, k=k)
+                    result = self.vector_store.similarity_search(query, k=k)
+                fallback_time = time.time() - fallback_start
+                config.logger.info(f"Fallback search completed in {fallback_time:.4f}s, returning {len(result)} documents")
+                return result
             except Exception as e2:
                 config.logger.error(f"Fallback search also failed: {e2}")
+                config.logger.info(f"Search completed in {time.time() - start_time:.4f}s (all searches failed), returning empty results")
                 return []
 
     def delete_document(self, doc_id: int):

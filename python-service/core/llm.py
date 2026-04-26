@@ -76,12 +76,19 @@ class LLMService:
      * @return LLM 的回答
      * """
     def get_answer(self, question: str, context_docs: list, conversation_context: str = "") -> str:
+        import time
+        start_time = time.time()
+        
         if not self.llm:
             # 当没有API密钥时，返回一个友好的默认响应
+            config.logger.info(f"LLM get_answer completed in {time.time() - start_time:.4f}s (no API key)")
             return "我是AI知识库助手，很高兴为您服务。由于系统未配置API密钥，我暂时无法提供详细回答。请联系管理员配置DASHSCOPE_API_KEY环境变量以启用完整功能。"
 
         # 处理包含图片的问题
+        image_process_start = time.time()
         processed_question = self.process_question_with_images(question)
+        image_process_time = time.time() - image_process_start
+        config.logger.info(f"Image processing completed in {image_process_time:.4f}s")
 
         # 处理知识库上下文
         if not context_docs:
@@ -101,13 +108,19 @@ class LLMService:
         )
 
         try:
-            return chain.invoke({
+            llm_start = time.time()
+            result = chain.invoke({
                 "conversation_context": conversation_context,
                 "knowledge_context": knowledge_context,
                 "question": processed_question
             })
+            llm_time = time.time() - llm_start
+            config.logger.info(f"LLM invocation completed in {llm_time:.4f}s")
+            config.logger.info(f"LLM get_answer completed in {time.time() - start_time:.4f}s")
+            return result
         except Exception as e:
             config.logger.error(f"LLM Error: {e}")
+            config.logger.info(f"LLM get_answer completed in {time.time() - start_time:.4f}s (error)")
             return "抱歉，AI服务暂时不可用，请稍后再试。"
 
     """
@@ -118,13 +131,20 @@ class LLMService:
      * @return 流式生成器，逐个token返回
      * """
     def get_answer_stream(self, question: str, context_docs: list, conversation_context: str = "") -> Generator[str, None, None]:
+        import time
+        start_time = time.time()
+        
         if not self.llm:
             # 当没有API密钥时，返回错误信息
+            config.logger.info(f"LLM get_answer_stream completed in {time.time() - start_time:.4f}s (no API key)")
             yield json.dumps({"type": "error", "content": "未配置API密钥"})
             return
 
         # 处理包含图片的问题
+        image_process_start = time.time()
         processed_question = self.process_question_with_images(question)
+        image_process_time = time.time() - image_process_start
+        config.logger.info(f"Image processing completed in {image_process_time:.4f}s")
 
         # 处理知识库上下文
         if not context_docs:
@@ -148,6 +168,7 @@ class LLMService:
             yield json.dumps({"type": "start", "content": ""})
 
             # 流式调用
+            llm_start = time.time()
             full_response = ""
             for chunk in chain.stream({
                 "conversation_context": conversation_context,
@@ -156,16 +177,24 @@ class LLMService:
             }):
                 full_response += chunk
                 yield json.dumps({"type": "token", "content": chunk})
+            llm_time = time.time() - llm_start
+            config.logger.info(f"LLM stream invocation completed in {llm_time:.4f}s")
 
             # 发送结束信号
             yield json.dumps({"type": "end", "content": full_response})
+            config.logger.info(f"LLM get_answer_stream completed in {time.time() - start_time:.4f}s")
 
         except Exception as e:
             config.logger.error(f"LLM Stream Error: {e}")
+            config.logger.info(f"LLM get_answer_stream completed in {time.time() - start_time:.4f}s (error)")
             yield json.dumps({"type": "error", "content": "AI服务暂时不可用"})
 
     def generate_title(self, question: str) -> str:
+        import time
+        start_time = time.time()
+        
         if not self.llm:
+            config.logger.info(f"LLM generate_title completed in {time.time() - start_time:.4f}s (no API key)")
             return "New Chat"
 
         chain = (
@@ -175,11 +204,17 @@ class LLMService:
         )
         
         try:
+            llm_start = time.time()
             title = chain.invoke({"question": question})
+            llm_time = time.time() - llm_start
             # 清理可能的额外空白或引号
-            return title.strip().strip('"').strip("'")
+            result = title.strip().strip('"').strip("'")
+            config.logger.info(f"LLM title generation completed in {llm_time:.4f}s")
+            config.logger.info(f"LLM generate_title completed in {time.time() - start_time:.4f}s")
+            return result
         except Exception as e:
             config.logger.error(f"LLM Title Generation Error: {e}")
+            config.logger.info(f"LLM generate_title completed in {time.time() - start_time:.4f}s (error)")
             return "New Chat"
 
     def extract_text_from_image(self, image_url: str) -> str:

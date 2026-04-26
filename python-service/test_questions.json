@@ -1,0 +1,98 @@
+{
+  "test_questions": [
+    {
+      "id": 1,
+      "type": "general",
+      "question": "你好，你是谁？",
+      "expected_answer_type": "general_response",
+      "expected_sources": [],
+      "evaluation_criteria": "应该返回一个友好的自我介绍，不需要引用文档"
+    },
+    {
+      "id": 2,
+      "type": "technical",
+      "question": "什么是人工智能？",
+      "expected_answer_type": "knowledge_based",
+      "expected_sources": ["knowledge_doc"],
+      "evaluation_criteria": "应该返回关于人工智能的定义和基本概念，最好引用相关文档"
+    },
+    {
+      "id": 3,
+      "type": "technical",
+      "question": "如何使用Python进行数据分析？",
+      "expected_answer_type": "knowledge_based",
+      "expected_sources": ["knowledge_doc"],
+      "evaluation_criteria": "应该返回Python数据分析的基本步骤和常用库，最好引用相关文档"
+    },
+    {
+      "id": 4,
+      "type": "general",
+      "question": "今天天气怎么样？",
+      "expected_answer_type": "general_response",
+      "expected_sources": [],
+      "evaluation_criteria": "应该返回一个友好的回应，说明无法获取实时天气信息"
+    },
+    {
+      "id": 5,
+      "type": "technical",
+      "question": "什么是机器学习？",
+      "expected_answer_type": "knowledge_based",
+      "expected_sources": ["knowledge_doc"],
+      "evaluation_criteria": "应该返回关于机器学习的定义和基本概念，最好引用相关文档"
+    },
+    {
+      "id": 6,
+      "type": "technical",
+      "question": "如何构建一个网站？",
+      "expected_answer_type": "knowledge_based",
+      "expected_sources": ["knowledge_doc"],
+      "evaluation_criteria": "应该返回网站构建的基本步骤和技术栈，最好引用相关文档"
+    },
+    {
+      "id": 7,
+      "type": "general",
+      "question": "讲个笑话",
+      "expected_answer_type": "general_response",
+      "expected_sources": [],
+      "evaluation_criteria": "应该返回一个幽默的笑话，不需要引用文档"
+    },
+    {
+      "id": 8,
+      "type": "technical",
+      "question": "什么是云计算？",
+      "expected_answer_type": "knowledge_based",
+      "expected_sources": ["knowledge_doc"],
+      "evaluation_criteria": "应该返回关于云计算的定义和基本概念，最好引用相关文档"
+    },
+    {
+      "id": 9,
+      "type": "technical",
+      "question": "如何保护计算机安全？",
+      "expected_answer_type": "knowledge_based",
+      "expected_sources": ["knowledge_doc"],
+      "evaluation_criteria": "应该返回计算机安全的基本措施和最佳实践，最好引用相关文档"
+    },
+    {
+      "id": 10,
+      "type": "general",
+      "question": "你能做什么？",
+      "expected_answer_type": "general_response",
+      "expected_sources": [],
+      "evaluation_criteria": "应该返回一个关于自身能力的介绍，不需要引用文档"
+    }
+  ],
+  "evaluation_metrics": {
+    "relevance": "回答是否与问题相关",
+    "accuracy": "回答是否准确",
+    "completeness": "回答是否完整",
+    "sources_quality": "引用的文档是否相关且高质量",
+    "response_time": "响应时间是否合理"
+  },
+  "scoring_scale": {
+    "excellent": 5,
+    "good": 4,
+    "average": 3,
+    "poor": 2,
+    "very_poor": 1
+  }
+}
