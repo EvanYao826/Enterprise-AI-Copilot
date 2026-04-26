@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ],
+      "env": {
+        "npm_config_cache": "E:/IDEA/idea/IDEAProjects/ai-knowledge-system/.claude/npm-cache"
+      }
+    }
+  }
+}

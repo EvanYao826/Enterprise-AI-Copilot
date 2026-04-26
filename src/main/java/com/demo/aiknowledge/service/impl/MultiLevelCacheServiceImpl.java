@@ -220,11 +220,25 @@ public class MultiLevelCacheServiceImpl implements CacheService {
                 if (redisValue != null) {
                     // Redis命中，回填本地缓存
                     long localTtl = Math.min(getDefaultTtl(cacheName), TimeUnit.MINUTES.toSeconds(10));
-                    localCache.put(key, new CacheEntry(redisValue, System.currentTimeMillis(), localTtl));
+                    
+                    // 处理Redis反序列化的类型转换问题
+                    Object finalValue = redisValue;
+                    if (redisValue instanceof LinkedHashMap) {
+                        // 将LinkedHashMap转换为目标类型
+                        try {
+                            finalValue = objectMapper.convertValue(redisValue, clazz);
+                            log.debug("Converted LinkedHashMap to {} - name: {}, key: {}", clazz.getSimpleName(), cacheName, key);
+                        } catch (Exception e) {
+                            log.error("Failed to convert LinkedHashMap to {} - name: {}, key: {}", clazz.getSimpleName(), cacheName, key, e);
+                            // 转换失败，使用原始值（可能会在后续cast时失败，但至少有日志）
+                        }
+                    }
+                    
+                    localCache.put(key, new CacheEntry(finalValue, System.currentTimeMillis(), localTtl));
 
                     recordCacheHit(cacheName);
                     log.debug("Redis cache hit - name: {}, key: {}", cacheName, key);
-                    return clazz.cast(redisValue);
+                    return clazz.cast(finalValue);
                 }
 
                 // 缓存未命中

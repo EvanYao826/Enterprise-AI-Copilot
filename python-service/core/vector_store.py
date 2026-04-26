@@ -6,9 +6,10 @@ from langchain_community.embeddings import DashScopeEmbeddings, HuggingFaceEmbed
 from langchain_core.documents import Document
 from pymilvus import connections, utility
 from core.reranker import create_reranker, BaseReranker
+from core.config import config
 
 class VectorStoreManager:
-    def __init__(self, persist_directory="./faiss_index", use_milvus=None):
+    def __init__(self, persist_directory=None, use_milvus=None):
         """
         初始化向量存储管理器
 
@@ -16,27 +17,29 @@ class VectorStoreManager:
             persist_directory: FAISS持久化目录（仅当use_milvus=False时使用）
             use_milvus: 是否使用Milvus（默认从环境变量读取，默认值为True）
         """
-        self.persist_directory = persist_directory
+        # 从环境变量读取持久化目录，默认值为./faiss_index
+        self.persist_directory = persist_directory or config.VECTOR_STORE_PERSIST_DIR
         # 从环境变量读取use_milvus配置，如果未设置则默认为True
         if use_milvus is None:
-            use_milvus = os.getenv("USE_MILVUS", "true").lower() == "true"
+            use_milvus = config.USE_MILVUS
         self.use_milvus = use_milvus
-        self.collection_name = "ai_knowledge_collection"
+        # 从环境变量读取集合名称，默认值为ai_knowledge_collection
+        self.collection_name = config.VECTOR_STORE_COLLECTION_NAME
         self.vector_store = None
 
         # 初始化Reranker
         self._init_reranker()
 
         # 优先使用阿里云 DashScope Embeddings (text-embedding-v1)
-        api_key = os.getenv("DASHSCOPE_API_KEY")
+        api_key = config.DASHSCOPE_API_KEY
         if api_key:
-            print("Using DashScope Embeddings (text-embedding-v1)")
+            config.logger.info("Using DashScope Embeddings (text-embedding-v1)")
             self.embeddings = DashScopeEmbeddings(
                 model="text-embedding-v1",
                 dashscope_api_key=api_key
             )
         else:
-            print("Warning: DASHSCOPE_API_KEY not found. Falling back to local HuggingFace Embeddings.")
+            config.logger.warning("DASHSCOPE_API_KEY not found. Falling back to local HuggingFace Embeddings.")
             # Fallback to local model
             self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -48,34 +51,34 @@ class VectorStoreManager:
 
     def _init_reranker(self):
         """初始化Reranker"""
-        reranker_type = os.getenv("RERANKER_TYPE", "simple")
+        reranker_type = config.RERANKER_TYPE
         if reranker_type == "none":
             self.reranker = None
-            print("Reranker is disabled")
+            config.logger.info("Reranker is disabled")
             return
 
         try:
             self.reranker = create_reranker(reranker_type)
-            print(f"Reranker initialized: {reranker_type}")
+            config.logger.info(f"Reranker initialized: {reranker_type}")
         except Exception as e:
-            print(f"Failed to initialize reranker: {e}")
+            config.logger.error(f"Failed to initialize reranker: {e}")
             self.reranker = None
 
     def _init_milvus(self):
         """初始化Milvus连接和集合"""
         try:
             # Milvus连接配置
-            milvus_host = os.getenv("MILVUS_HOST", "localhost")
-            milvus_port = os.getenv("MILVUS_PORT", "19530")
+            milvus_host = config.MILVUS_HOST
+            milvus_port = config.MILVUS_PORT
 
-            print(f"Connecting to Milvus at {milvus_host}:{milvus_port}")
+            config.logger.info(f"Connecting to Milvus at {milvus_host}:{milvus_port}")
             connections.connect(alias="default", host=milvus_host, port=milvus_port)
 
             # 检查连接
             if not connections.has_connection("default"):
                 raise ConnectionError("Failed to connect to Milvus")
 
-            print("Successfully connected to Milvus")
+            config.logger.info("Successfully connected to Milvus")
 
             # 初始化Milvus向量存储
             self.vector_store = Milvus(
@@ -90,11 +93,11 @@ class VectorStoreManager:
                 auto_id=True
             )
 
-            print(f"Milvus collection '{self.collection_name}' ready")
+            config.logger.info(f"Milvus collection '{self.collection_name}' ready")
 
         except Exception as e:
-            print(f"Failed to initialize Milvus: {e}")
-            print("Falling back to FAISS...")
+            config.logger.error(f"Failed to initialize Milvus: {e}")
+            config.logger.info("Falling back to FAISS...")
             self.use_milvus = False
             self._init_faiss()
 
@@ -102,14 +105,14 @@ class VectorStoreManager:
         """
         初始化 FAISS 向量存储（作为 Milvus 的 fallback）
         """
-        print("Using FAISS vector store (fallback mode)")
+        config.logger.info("Using FAISS vector store (fallback mode)")
         if os.path.exists(self.persist_directory):
             try:
                 self.vector_store = FAISS.load_local(self.persist_directory, self.embeddings, allow_dangerous_deserialization=True)
-                print(f"Loaded existing FAISS index from {self.persist_directory}")
+                config.logger.info(f"Loaded existing FAISS index from {self.persist_directory}")
             except Exception as e:
-                print(f"Error loading existing FAISS index: {e}")
-                print("Re-initializing empty FAISS vector store...")
+                config.logger.error(f"Error loading existing FAISS index: {e}")
+                config.logger.info("Re-initializing empty FAISS vector store...")
                 # Backup old index just in case
                 if os.path.exists(self.persist_directory + "_backup"):
                     shutil.rmtree(self.persist_directory + "_backup")
@@ -117,7 +120,7 @@ class VectorStoreManager:
                 self.vector_store = None
         else:
             self.vector_store = None
-            print("No existing FAISS index found, will create new one when needed")
+            config.logger.info("No existing FAISS index found, will create new one when needed")
 
     def add_documents(self, documents: List[Document]):
         """
@@ -129,33 +132,35 @@ class VectorStoreManager:
         if self.vector_store is None:
             if self.use_milvus:
                 # Milvus会自动创建集合
+                milvus_host = config.MILVUS_HOST
+                milvus_port = config.MILVUS_PORT
                 self.vector_store = Milvus.from_documents(
                     documents=documents,
                     embedding=self.embeddings,
                     collection_name=self.collection_name,
                     connection_args={
-                        "host": os.getenv("MILVUS_HOST", "localhost"),
-                        "port": os.getenv("MILVUS_PORT", "19530"),
+                        "host": milvus_host,
+                        "port": milvus_port,
                         "alias": "default"
                     }
                 )
-                print(f"Created Milvus collection '{self.collection_name}' with {len(documents)} documents")
+                config.logger.info(f"Created Milvus collection '{self.collection_name}' with {len(documents)} documents")
             else:
                 # FAISS
                 self.vector_store = FAISS.from_documents(documents, self.embeddings)
                 self.vector_store.save_local(self.persist_directory)
-                print(f"Created FAISS index with {len(documents)} documents")
+                config.logger.info(f"Created FAISS index with {len(documents)} documents")
         else:
             # 添加文档到现有存储
             if self.use_milvus:
                 # Milvus添加文档
                 self.vector_store.add_documents(documents)
-                print(f"Added {len(documents)} documents to Milvus")
+                config.logger.info(f"Added {len(documents)} documents to Milvus")
             else:
                 # FAISS添加文档
                 self.vector_store.add_documents(documents)
                 self.vector_store.save_local(self.persist_directory)
-                print(f"Added {len(documents)} documents to FAISS")
+                config.logger.info(f"Added {len(documents)} documents to FAISS")
 
     def search(self, query: str, k: int = 3, filter_dict: Optional[Dict[str, Any]] = None, similarity_threshold: float = 0.7, use_rerank: bool = True) -> List[Document]:
         """
@@ -199,9 +204,9 @@ class VectorStoreManager:
                 for i, (doc, score) in enumerate(docs_with_scores):
                     if score >= similarity_threshold:
                         filtered_docs.append(doc)
-                        print(f"Document similarity score: {score}")
+                        config.logger.debug(f"Document similarity score: {score}")
                     else:
-                        print(f"Document filtered out due to low similarity: {score}")
+                        config.logger.debug(f"Document filtered out due to low similarity: {score}")
                 return filtered_docs
 
             # 使用Rerank进行重排序
@@ -213,12 +218,12 @@ class VectorStoreManager:
 
                 # Rerank已经按相关性排序，这里不再应用similarity_threshold
                 # 但如果需要可以在这里添加额外的过滤逻辑
-                print(f"Rerank completed, returning {len(reranked_docs)} documents")
+                config.logger.info(f"Rerank completed, returning {len(reranked_docs)} documents")
 
                 return reranked_docs
 
             except Exception as rerank_error:
-                print(f"Rerank failed: {rerank_error}, falling back to vector search")
+                config.logger.error(f"Rerank failed: {rerank_error}, falling back to vector search")
                 # Rerank失败时，回退到原始的向量搜索结果
                 filtered_docs = []
                 for doc, score in docs_with_scores:
@@ -227,7 +232,7 @@ class VectorStoreManager:
                 return filtered_docs
 
         except Exception as e:
-            print(f"Search error: {e}")
+            config.logger.error(f"Search error: {e}")
             # 如果 similarity_search_with_score 失败，回退到普通搜索
             try:
                 if self.use_milvus and filter_dict:
@@ -235,7 +240,7 @@ class VectorStoreManager:
                 else:
                     return self.vector_store.similarity_search(query, k=k)
             except Exception as e2:
-                print(f"Fallback search also failed: {e2}")
+                config.logger.error(f"Fallback search also failed: {e2}")
                 return []
 
     def delete_document(self, doc_id: int):
@@ -246,13 +251,13 @@ class VectorStoreManager:
         FAISS: 标记删除（实际需要重建索引）
         """
         if self.vector_store is None:
-            print(f"No vector store available, cannot delete doc_id: {doc_id}")
+            config.logger.warning(f"No vector store available, cannot delete doc_id: {doc_id}")
             return
 
         if self.use_milvus:
             # Milvus删除逻辑
             try:
-                print(f"Deleting document with doc_id: {doc_id} from Milvus")
+                config.logger.info(f"Deleting document with doc_id: {doc_id} from Milvus")
 
                 # 构建删除表达式（使用类型转换确保安全性）
                 if not isinstance(doc_id, int):
@@ -261,21 +266,21 @@ class VectorStoreManager:
 
                 # 执行删除
                 result = self.vector_store.delete(expr=delete_expr)
-                print(f"Milvus delete result: {result}")
+                config.logger.info(f"Milvus delete result: {result}")
 
                 # 可选：压缩集合以释放空间
                 # utility.compact(collection_name=self.collection_name)
 
-                print(f"Successfully deleted document {doc_id} from Milvus")
+                config.logger.info(f"Successfully deleted document {doc_id} from Milvus")
 
             except Exception as e:
-                print(f"Failed to delete document from Milvus: {e}")
+                config.logger.error(f"Failed to delete document from Milvus: {e}")
                 # 尝试其他删除方法
                 self._delete_document_fallback(doc_id)
 
         else:
             # FAISS删除逻辑（效率较低）
-            print(f"Deleting document with doc_id: {doc_id} from FAISS")
+            config.logger.info(f"Deleting document with doc_id: {doc_id} from FAISS")
             self._delete_document_faiss(doc_id)
 
     def _delete_document_fallback(self, doc_id: int):
@@ -286,7 +291,7 @@ class VectorStoreManager:
             docs_to_delete = self.search("", k=1000, filter_dict=filter_dict)
 
             if not docs_to_delete:
-                print(f"No documents found with doc_id: {doc_id}")
+                config.logger.info(f"No documents found with doc_id: {doc_id}")
                 return
 
             # 提取文档ID（假设metadata中有唯一ID）
@@ -298,12 +303,12 @@ class VectorStoreManager:
             if ids_to_delete:
                 # 执行删除
                 self.vector_store.delete(ids=ids_to_delete)
-                print(f"Deleted {len(ids_to_delete)} chunks for doc_id {doc_id}")
+                config.logger.info(f"Deleted {len(ids_to_delete)} chunks for doc_id {doc_id}")
             else:
-                print(f"No deletable chunks found for doc_id {doc_id}")
+                config.logger.info(f"No deletable chunks found for doc_id {doc_id}")
 
         except Exception as e:
-            print(f"Fallback delete failed: {e}")
+            config.logger.error(f"Fallback delete failed: {e}")
 
     def _delete_document_faiss(self, doc_id: int):
         """FAISS删除实现（需要重建索引）"""
@@ -318,16 +323,16 @@ class VectorStoreManager:
                 # FAISS的delete方法可能不彻底，这里尝试删除
                 self.vector_store.delete(ids_to_delete)
                 self.vector_store.save_local(self.persist_directory)
-                print(f"Deleted {len(ids_to_delete)} chunks for doc_id {doc_id}")
+                config.logger.info(f"Deleted {len(ids_to_delete)} chunks for doc_id {doc_id}")
 
                 # 建议：定期重建FAISS索引以提高效率
                 if len(ids_to_delete) > 100:
-                    print("Warning: Large deletion in FAISS. Consider rebuilding index for better performance.")
+                    config.logger.warning("Large deletion in FAISS. Consider rebuilding index for better performance.")
             else:
-                print(f"No chunks found for doc_id {doc_id}")
+                config.logger.info(f"No chunks found for doc_id {doc_id}")
 
         except Exception as e:
-            print(f"Failed to delete document from FAISS: {e}")
+            config.logger.error(f"Failed to delete document from FAISS: {e}")
 
     def delete_collection(self):
         """
@@ -337,15 +342,15 @@ class VectorStoreManager:
             try:
                 # 删除Milvus集合
                 utility.drop_collection(self.collection_name)
-                print(f"Successfully deleted Milvus collection '{self.collection_name}'")
+                config.logger.info(f"Successfully deleted Milvus collection '{self.collection_name}'")
             except Exception as e:
-                print(f"Failed to delete Milvus collection: {e}")
+                config.logger.error(f"Failed to delete Milvus collection: {e}")
         else:
             # 删除FAISS目录
             if os.path.exists(self.persist_directory):
                 shutil.rmtree(self.persist_directory)
             self.vector_store = None
-            print("Successfully deleted FAISS collection")
+            config.logger.info("Successfully deleted FAISS collection")
 
     def get_stats(self) -> Dict[str, Any]:
         """获取向量库统计信息"""
@@ -374,11 +379,11 @@ class VectorStoreManager:
     def migrate_faiss_to_milvus(self):
         """将FAISS数据迁移到Milvus"""
         if not self.use_milvus or self.vector_store is None:
-            print("Cannot migrate: not using Milvus or no vector store")
+            config.logger.warning("Cannot migrate: not using Milvus or no vector store")
             return False
 
         try:
-            print("Starting migration from FAISS to Milvus...")
+            config.logger.info("Starting migration from FAISS to Milvus...")
 
             # 1. 加载FAISS数据
             if os.path.exists(self.persist_directory):
@@ -392,19 +397,19 @@ class VectorStoreManager:
                 # 3. 添加到Milvus
                 if all_docs:
                     self.add_documents(all_docs)
-                    print(f"Migrated {len(all_docs)} documents from FAISS to Milvus")
+                    config.logger.info(f"Migrated {len(all_docs)} documents from FAISS to Milvus")
 
                     # 4. 备份原FAISS数据
                     backup_dir = self.persist_directory + "_migrated_backup"
                     if os.path.exists(backup_dir):
                         shutil.rmtree(backup_dir)
                     shutil.move(self.persist_directory, backup_dir)
-                    print(f"Backed up FAISS data to {backup_dir}")
+                    config.logger.info(f"Backed up FAISS data to {backup_dir}")
 
                     return True
 
             return False
 
         except Exception as e:
-            print(f"Migration failed: {e}")
+            config.logger.error(f"Migration failed: {e}")
             return False

@@ -9,20 +9,34 @@ from langchain_core.documents import Document
 from PIL import Image
 import pytesseract
 from core.text_splitter import AdaptiveChunker, create_chunker
+from core.config import config
 
 # 配置日志
-logger = logging.getLogger(__name__)
+logger = config.logger
+
+# 全局变量，标记Tesseract是否可用
+tesseract_available = False
 
 # 动态配置Tesseract路径
 def setup_tesseract():
     """动态配置Tesseract路径，支持多种安装位置"""
-    possible_paths = [
-        r'E:/Tesseract-OCR/tesseract.exe',  # 当前配置
+    global tesseract_available
+    # 从环境变量读取Tesseract路径
+    env_tesseract_path = os.getenv("TESSERACT_PATH")
+    possible_paths = []
+    
+    # 如果环境变量设置了路径，优先使用
+    if env_tesseract_path:
+        possible_paths.append(env_tesseract_path)
+    
+    # 添加默认路径
+    possible_paths.extend([
         r'C:/Program Files/Tesseract-OCR/tesseract.exe',  # 默认安装路径
         r'C:/Program Files (x86)/Tesseract-OCR/tesseract.exe',  # 32位安装路径
+        r'E:/Tesseract-OCR/tesseract.exe',  # E盘安装路径
         '/usr/bin/tesseract',  # Linux/Mac
         '/usr/local/bin/tesseract',  # Linux/Mac alternative
-    ]
+    ])
 
     for path in possible_paths:
         if os.path.exists(path):
@@ -46,6 +60,7 @@ def setup_tesseract():
                     logger.info("English language pack found: eng.traineddata")
                 else:
                     logger.warning("English language pack (eng.traineddata) not found!")
+            tesseract_available = True
             return
 
     logger.error("Tesseract not found in any known location!")
@@ -53,20 +68,22 @@ def setup_tesseract():
     try:
         pytesseract.get_tesseract_version()
         logger.info("Tesseract found in system PATH")
+        tesseract_available = True
     except Exception as e:
         logger.error(f"Tesseract not found: {e}")
-        raise RuntimeError("Tesseract OCR not installed. Please install Tesseract and language packs.")
+        logger.warning("Tesseract OCR not installed. Image OCR functionality will be disabled.")
+        tesseract_available = False
 
 # 初始化Tesseract
 setup_tesseract()
 
 class DocumentParser:
     def __init__(self):
-        # 从环境变量读取切分配置
-        chunk_size = int(os.getenv("CHUNK_SIZE", "500"))
-        chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "50"))
-        min_chunk_size = int(os.getenv("MIN_CHUNK_SIZE", "100"))
-        chunk_strategy = os.getenv("CHUNK_STRATEGY", "semantic")
+        # 从配置管理模块读取切分配置
+        chunk_size = config.CHUNK_SIZE
+        chunk_overlap = config.CHUNK_OVERLAP
+        min_chunk_size = config.MIN_CHUNK_SIZE
+        chunk_strategy = config.CHUNK_STRATEGY
 
         # 使用自适应切分器
         self.chunker = create_chunker({
@@ -159,81 +176,96 @@ class DocumentParser:
                 # 处理图片文件，使用OCR
                 try:
                     logger.info(f"Processing image file: {target_path}")
-                    image = Image.open(target_path)
-
-                    # 优化图片预处理
-                    # 1. 转换为灰度图（提高OCR准确率）
-                    if image.mode != 'L':
-                        image = image.convert('L')
-
-                    # 2. 调整图片大小（如果太大）
-                    max_size = 2000
-                    if max(image.size) > max_size:
-                        ratio = max_size / max(image.size)
-                        new_size = tuple(int(dim * ratio) for dim in image.size)
-                        image = image.resize(new_size, Image.Resampling.LANCZOS)
-                        logger.info(f"Resized image from {image.size} to {new_size}")
-
-                    # 3. 尝试多种语言配置
-                    ocr_text = ""
-                    ocr_errors = []
-
-                    # 尝试组合语言包
-                    lang_configs = [
-                        'chi_sim+eng',  # 简体中文+英文
-                        'chi_sim',      # 仅简体中文
-                        'eng',          # 仅英文
-                        'chi_tra+eng',  # 繁体中文+英文
-                    ]
-
-                    for lang in lang_configs:
-                        try:
-                            logger.info(f"Trying OCR with language: {lang}")
-                            text = pytesseract.image_to_string(
-                                image,
-                                lang=lang,
-                                config='--psm 3 --oem 3'  # 自动页面分割，LSTM OCR引擎
-                            )
-
-                            if text and text.strip():
-                                ocr_text = text.strip()
-                                logger.info(f"OCR successful with language {lang}, text length: {len(ocr_text)}")
-                                # 预览前100个字符
-                                preview = ocr_text[:100].replace('\n', ' ')
-                                logger.info(f"OCR preview: {preview}...")
-                                break
-                            else:
-                                logger.warning(f"No text detected with language: {lang}")
-                        except Exception as lang_error:
-                            error_msg = f"Language {lang} failed: {str(lang_error)}"
-                            ocr_errors.append(error_msg)
-                            logger.warning(error_msg)
-
-                    # 如果所有语言都失败，尝试默认语言
-                    if not ocr_text:
-                        try:
-                            logger.info("Trying OCR with default settings")
-                            ocr_text = pytesseract.image_to_string(image).strip()
-                        except Exception as default_error:
-                            logger.error(f"Default OCR failed: {default_error}")
-
-                    # 最终检查
-                    if not ocr_text or not ocr_text.strip():
-                        ocr_text = "图片中未识别到文字"
-                        logger.warning("No text detected in image")
+                    
+                    # 检查Tesseract是否可用
+                    if not tesseract_available:
+                        logger.warning("Tesseract OCR is not available. Image OCR functionality is disabled.")
+                        # 返回一个包含错误信息的文档
+                        documents = [Document(
+                            page_content="图片OCR处理失败: Tesseract OCR未安装或不可用",
+                            metadata={
+                                "source": target_path,
+                                "page": 1,
+                                "file_type": "image",
+                                "error": "Tesseract OCR is not available"
+                            }
+                        )]
                     else:
-                        logger.info(f"OCR completed successfully. Text length: {len(ocr_text)}")
+                        image = Image.open(target_path)
 
-                    # 创建文档对象
-                    documents = [Document(
-                        page_content=ocr_text,
-                        metadata={
-                            "source": target_path,
-                            "page": 1,
-                            "file_type": "image",
-                            "ocr_errors": ocr_errors if ocr_errors else None
-                        }
-                    )]
+                        # 优化图片预处理
+                        # 1. 转换为灰度图（提高OCR准确率）
+                        if image.mode != 'L':
+                            image = image.convert('L')
+
+                        # 2. 调整图片大小（如果太大）
+                        max_size = 2000
+                        if max(image.size) > max_size:
+                            ratio = max_size / max(image.size)
+                            new_size = tuple(int(dim * ratio) for dim in image.size)
+                            image = image.resize(new_size, Image.Resampling.LANCZOS)
+                            logger.info(f"Resized image from {image.size} to {new_size}")
+
+                        # 3. 尝试多种语言配置
+                        ocr_text = ""
+                        ocr_errors = []
+
+                        # 尝试组合语言包
+                        lang_configs = [
+                            'chi_sim+eng',  # 简体中文+英文
+                            'chi_sim',      # 仅简体中文
+                            'eng',          # 仅英文
+                            'chi_tra+eng',  # 繁体中文+英文
+                        ]
+
+                        for lang in lang_configs:
+                            try:
+                                logger.info(f"Trying OCR with language: {lang}")
+                                text = pytesseract.image_to_string(
+                                    image,
+                                    lang=lang,
+                                    config='--psm 3 --oem 3'  # 自动页面分割，LSTM OCR引擎
+                                )
+
+                                if text and text.strip():
+                                    ocr_text = text.strip()
+                                    logger.info(f"OCR successful with language {lang}, text length: {len(ocr_text)}")
+                                    # 预览前100个字符
+                                    preview = ocr_text[:100].replace('\n', ' ')
+                                    logger.info(f"OCR preview: {preview}...")
+                                    break
+                                else:
+                                    logger.warning(f"No text detected with language: {lang}")
+                            except Exception as lang_error:
+                                error_msg = f"Language {lang} failed: {str(lang_error)}"
+                                ocr_errors.append(error_msg)
+                                logger.warning(error_msg)
+
+                        # 如果所有语言都失败，尝试默认语言
+                        if not ocr_text:
+                            try:
+                                logger.info("Trying OCR with default settings")
+                                ocr_text = pytesseract.image_to_string(image).strip()
+                            except Exception as default_error:
+                                logger.error(f"Default OCR failed: {default_error}")
+
+                        # 最终检查
+                        if not ocr_text or not ocr_text.strip():
+                            ocr_text = "图片中未识别到文字"
+                            logger.warning("No text detected in image")
+                        else:
+                            logger.info(f"OCR completed successfully. Text length: {len(ocr_text)}")
+
+                        # 创建文档对象
+                        documents = [Document(
+                            page_content=ocr_text,
+                            metadata={
+                                "source": target_path,
+                                "page": 1,
+                                "file_type": "image",
+                                "ocr_errors": ocr_errors if ocr_errors else None
+                            }
+                        )]
                 except Exception as e:
                     logger.error(f"Failed to OCR image {target_path}: {e}")
                     # 返回一个包含错误信息的文档，而不是抛出异常

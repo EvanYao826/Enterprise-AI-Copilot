@@ -8,16 +8,19 @@ from langchain_core.output_parsers import StrOutputParser
 from PIL import Image
 import pytesseract
 
+# 使用统一配置管理模块
+from core.config import config
+
 # 配置Tesseract OCR路径
-pytesseract.pytesseract.tesseract_cmd = r'E:/Tesseract-OCR/tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = config.TESSERACT_PATH
 
 class LLMService:
     def __init__(self):
         # 默认使用阿里云通义千问 (需要设置 DASHSCOPE_API_KEY 环境变量)
-        api_key = os.getenv("DASHSCOPE_API_KEY")
+        api_key = config.DASHSCOPE_API_KEY
         
         if not api_key:
-            print("Warning: DASHSCOPE_API_KEY not found. LLM features will not work properly.")
+            config.logger.warning("DASHSCOPE_API_KEY not found. LLM features will not work properly.")
             self.llm = None
         else:
             # 使用 qwen-plus 模型，效果比 turbo 好，适合知识库问答
@@ -104,7 +107,7 @@ class LLMService:
                 "question": processed_question
             })
         except Exception as e:
-            print(f"LLM Error: {e}")
+            config.logger.error(f"LLM Error: {e}")
             return "抱歉，AI服务暂时不可用，请稍后再试。"
 
     """
@@ -158,7 +161,7 @@ class LLMService:
             yield json.dumps({"type": "end", "content": full_response})
 
         except Exception as e:
-            print(f"LLM Stream Error: {e}")
+            config.logger.error(f"LLM Stream Error: {e}")
             yield json.dumps({"type": "error", "content": "AI服务暂时不可用"})
 
     def generate_title(self, question: str) -> str:
@@ -176,7 +179,7 @@ class LLMService:
             # 清理可能的额外空白或引号
             return title.strip().strip('"').strip("'")
         except Exception as e:
-            print(f"LLM Title Generation Error: {e}")
+            config.logger.error(f"LLM Title Generation Error: {e}")
             return "New Chat"
 
     def extract_text_from_image(self, image_url: str) -> str:
@@ -189,24 +192,24 @@ class LLMService:
                 # 使用后端服务地址
                 image_url = f"http://localhost:8080{image_url}"
             
-            print(f"Downloading image from: {image_url}")
+            config.logger.info(f"Downloading image from: {image_url}")
             
             # 下载图片
             response = requests.get(image_url, timeout=10)
             response.raise_for_status()
             
             # 保存到临时文件
-            temp_path = "temp_image.png"
+            temp_path = os.path.join(config.TEMP_DIR, "temp_image.png")
             with open(temp_path, "wb") as f:
                 f.write(response.content)
             
-            print(f"Image saved to temp file, size: {len(response.content)} bytes")
+            config.logger.info(f"Image saved to temp file, size: {len(response.content)} bytes")
             
             # 使用OCR提取文字
             image = Image.open(temp_path)
             text = pytesseract.image_to_string(image, lang='chi_sim+eng')
             
-            print(f"OCR result: {text[:100]}...")  # 打印前100个字符
+            config.logger.info(f"OCR result: {text[:100]}...")  # 打印前100个字符
             
             # 清理临时文件
             if os.path.exists(temp_path):
@@ -214,7 +217,7 @@ class LLMService:
             
             return text.strip() if text.strip() else "图片中未识别到文字"
         except Exception as e:
-            print(f"Error extracting text from image: {e}")
+            config.logger.error(f"Error extracting text from image: {e}")
             return f"无法从图片中提取文字: {str(e)}"
 
     def process_question_with_images(self, question: str) -> str:
@@ -225,7 +228,7 @@ class LLMService:
         # 查找图片URL（支持完整URL和相对路径）
         image_urls = re.findall(r'图片URL: (/api/[^\n]+)', question)
         
-        print(f"Found image URLs: {image_urls}")
+        config.logger.info(f"Found image URLs: {image_urls}")
         
         if image_urls:
             processed_question = question
