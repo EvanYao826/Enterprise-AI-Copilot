@@ -5,6 +5,7 @@ from langchain_community.vectorstores import FAISS, Milvus
 from langchain_community.embeddings import DashScopeEmbeddings, HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from pymilvus import connections, utility
+from core.reranker import create_reranker, BaseReranker
 
 class VectorStoreManager:
     def __init__(self, persist_directory="./faiss_index", use_milvus=None):
@@ -22,6 +23,9 @@ class VectorStoreManager:
         self.use_milvus = use_milvus
         self.collection_name = "ai_knowledge_collection"
         self.vector_store = None
+
+        # 初始化Reranker
+        self._init_reranker()
 
         # 优先使用阿里云 DashScope Embeddings (text-embedding-v1)
         api_key = os.getenv("DASHSCOPE_API_KEY")
@@ -41,6 +45,21 @@ class VectorStoreManager:
             self._init_milvus()
         else:
             self._init_faiss()
+
+    def _init_reranker(self):
+        """初始化Reranker"""
+        reranker_type = os.getenv("RERANKER_TYPE", "simple")
+        if reranker_type == "none":
+            self.reranker = None
+            print("Reranker is disabled")
+            return
+
+        try:
+            self.reranker = create_reranker(reranker_type)
+            print(f"Reranker initialized: {reranker_type}")
+        except Exception as e:
+            print(f"Failed to initialize reranker: {e}")
+            self.reranker = None
 
     def _init_milvus(self):
         """初始化Milvus连接和集合"""
@@ -138,7 +157,7 @@ class VectorStoreManager:
                 self.vector_store.save_local(self.persist_directory)
                 print(f"Added {len(documents)} documents to FAISS")
 
-    def search(self, query: str, k: int = 3, filter_dict: Optional[Dict[str, Any]] = None, similarity_threshold: float = 0.7) -> List[Document]:
+    def search(self, query: str, k: int = 3, filter_dict: Optional[Dict[str, Any]] = None, similarity_threshold: float = 0.7, use_rerank: bool = True) -> List[Document]:
         """
         相似度搜索
 
@@ -147,31 +166,66 @@ class VectorStoreManager:
             k: 返回结果数量
             filter_dict: 过滤条件（仅Milvus支持）
             similarity_threshold: 相似度阈值，只有相似度大于此值的文档才返回（0.0-1.0）
+            use_rerank: 是否使用Rerank进行结果重排序
         """
         if self.vector_store is None:
             return []
 
         try:
+            # 初始检索数量应该比最终返回的多，以便Rerank有足够的候选
+            initial_k = k * 3 if use_rerank and self.reranker else k
+
             if self.use_milvus and filter_dict:
                 # Milvus支持过滤查询
-                docs_with_scores = self.vector_store.similarity_search_with_score(query, k=k, filter=filter_dict)
+                docs_with_scores = self.vector_store.similarity_search_with_score(query, k=initial_k, filter=filter_dict)
             else:
                 # FAISS或无条件查询
-                docs_with_scores = self.vector_store.similarity_search_with_score(query, k=k)
+                docs_with_scores = self.vector_store.similarity_search_with_score(query, k=initial_k)
 
-            # 过滤掉相似度低于阈值的文档
-            filtered_docs = []
-            for doc, score in docs_with_scores:
-                # 注意：不同向量数据库的相似度分数范围可能不同
-                # FAISS通常返回余弦相似度（-1到1），Milvus可能返回距离（越小越相似）
-                # 这里假设返回的是相似度分数（越大越相似）
-                if score >= similarity_threshold:
-                    filtered_docs.append(doc)
-                    print(f"Document similarity score: {score}")
+            # 提取文档
+            if isinstance(docs_with_scores, list):
+                if len(docs_with_scores) > 0 and isinstance(docs_with_scores[0], tuple):
+                    # (doc, score) 格式
+                    docs = [doc for doc, score in docs_with_scores]
                 else:
-                    print(f"Document filtered out due to low similarity: {score}")
+                    docs = docs_with_scores
+            else:
+                docs = docs_with_scores
 
-            return filtered_docs
+            # 如果没有启用Rerank或没有Reranker，直接返回初步检索结果
+            if not use_rerank or not self.reranker:
+                # 过滤掉相似度低于阈值的文档
+                filtered_docs = []
+                for i, (doc, score) in enumerate(docs_with_scores):
+                    if score >= similarity_threshold:
+                        filtered_docs.append(doc)
+                        print(f"Document similarity score: {score}")
+                    else:
+                        print(f"Document filtered out due to low similarity: {score}")
+                return filtered_docs
+
+            # 使用Rerank进行重排序
+            try:
+                rerank_results = self.reranker.rerank(query, docs, top_k=k)
+
+                # 提取重排序后的文档
+                reranked_docs = [r.document for r in rerank_results]
+
+                # Rerank已经按相关性排序，这里不再应用similarity_threshold
+                # 但如果需要可以在这里添加额外的过滤逻辑
+                print(f"Rerank completed, returning {len(reranked_docs)} documents")
+
+                return reranked_docs
+
+            except Exception as rerank_error:
+                print(f"Rerank failed: {rerank_error}, falling back to vector search")
+                # Rerank失败时，回退到原始的向量搜索结果
+                filtered_docs = []
+                for doc, score in docs_with_scores:
+                    if score >= similarity_threshold:
+                        filtered_docs.append(doc)
+                return filtered_docs
+
         except Exception as e:
             print(f"Search error: {e}")
             # 如果 similarity_search_with_score 失败，回退到普通搜索

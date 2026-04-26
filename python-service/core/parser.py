@@ -8,6 +8,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from PIL import Image
 import pytesseract
+from core.text_splitter import AdaptiveChunker, create_chunker
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -61,10 +62,21 @@ setup_tesseract()
 
 class DocumentParser:
     def __init__(self):
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=50
-        )
+        # 从环境变量读取切分配置
+        chunk_size = int(os.getenv("CHUNK_SIZE", "500"))
+        chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "50"))
+        min_chunk_size = int(os.getenv("MIN_CHUNK_SIZE", "100"))
+        chunk_strategy = os.getenv("CHUNK_STRATEGY", "semantic")
+
+        # 使用自适应切分器
+        self.chunker = create_chunker({
+            "chunk_size": chunk_size,
+            "chunk_overlap": chunk_overlap,
+            "min_chunk_size": min_chunk_size,
+            "strategy": chunk_strategy
+        })
+
+        logger.info(f"DocumentParser initialized with strategy: {chunk_strategy}, chunk_size: {chunk_size}")
 
     def parse(self, file_path: str) -> List[Document]:
         """
@@ -236,7 +248,9 @@ class DocumentParser:
                     )]
             else:
                 raise ValueError(f"Unsupported file type: {ext}")
-            chunks = self.text_splitter.split_documents(documents)
+
+            # 使用自适应切分器进行文档切分
+            chunks = self.chunker.split_documents(documents)
             return chunks
 
         finally:

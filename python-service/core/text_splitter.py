@@ -2,7 +2,10 @@ import os
 import re
 from typing import List, Optional, Dict, Any
 from langchain_core.documents import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter, TextSplitter
+try:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
+except ImportError:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter, TextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
 import logging
 
@@ -61,7 +64,7 @@ class SemanticChunkerSplitter(TextSplitter):
                 continue
 
             # 如果单个段落就超过chunk_size，需要进一步切分
-            if len(paragraph) > self.chunk_size:
+            if len(paragraph) > self._chunk_size:
                 # 先保存当前chunk
                 if current_chunk.strip():
                     chunks.append(current_chunk.strip())
@@ -72,7 +75,7 @@ class SemanticChunkerSplitter(TextSplitter):
                 chunks.extend(sentence_chunks)
             else:
                 # 检查添加这个段落是否会超过chunk_size
-                if len(current_chunk) + len(paragraph) + len(self.separator) > self.chunk_size:
+                if len(current_chunk) + len(paragraph) + len(self.separator) > self._chunk_size:
                     # 保存当前chunk，开始新的
                     if current_chunk.strip():
                         chunks.append(current_chunk.strip())
@@ -124,7 +127,7 @@ class SemanticChunkerSplitter(TextSplitter):
                 continue
 
             # 如果单个句子就超过chunk_size，按字符切分
-            if len(sentence) > self.chunk_size:
+            if len(sentence) > self._chunk_size:
                 if current_chunk.strip():
                     chunks.append(current_chunk.strip())
                     current_chunk = ""
@@ -133,7 +136,7 @@ class SemanticChunkerSplitter(TextSplitter):
                 sub_chunks = self._split_by_punctuation(sentence)
                 chunks.extend(sub_chunks)
             else:
-                if len(current_chunk) + len(sentence) > self.chunk_size:
+                if len(current_chunk) + len(sentence) > self._chunk_size:
                     if current_chunk.strip():
                         chunks.append(current_chunk.strip())
                     current_chunk = sentence
@@ -168,12 +171,12 @@ class SemanticChunkerSplitter(TextSplitter):
                     next_delimiter_pos = pos
                     delimiter = d
 
-            if next_delimiter_pos == -1 or next_delimiter_pos - current_pos > self.chunk_size:
+            if next_delimiter_pos == -1 or next_delimiter_pos - current_pos > self._chunk_size:
                 # 没有找到分隔符或下一个分隔符太远，直接取剩余字符
-                chunk = text[current_pos:current_pos + self.chunk_size]
+                chunk = text[current_pos:current_pos + self._chunk_size]
                 if chunk.strip():
                     chunks.append(chunk.strip())
-                current_pos += self.chunk_size
+                current_pos += self._chunk_size
             else:
                 # 在分隔符处断开
                 chunk = text[current_pos:next_delimiter_pos + 1]

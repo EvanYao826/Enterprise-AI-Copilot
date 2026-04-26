@@ -181,20 +181,21 @@ class SimpleReranker(BaseReranker):
 
     def _calculate_keyword_score(self, query: str, document: Document) -> float:
         """计算关键词匹配分数"""
-        query_terms = set(query.lower().split())
-        doc_terms = set(document.page_content.lower().split())
+        # 简单的字符级别匹配（适用于中文）
+        query_chars = set([c for c in query.lower() if c.isalnum()])
+        doc_chars = set([c for c in document.page_content.lower() if c.isalnum()])
 
-        if not query_terms:
+        if not query_chars:
             return 0.0
 
         # 计算Jaccard相似度
-        intersection = query_terms & doc_terms
-        union = query_terms | doc_terms
+        intersection = query_chars & doc_chars
+        union = query_chars | doc_chars
 
         jaccard = len(intersection) / len(union) if union else 0
 
         # 计算覆盖率
-        coverage = len(intersection) / len(query_terms) if query_terms else 0
+        coverage = len(intersection) / len(query_chars) if query_chars else 0
 
         return (jaccard + coverage) / 2
 
