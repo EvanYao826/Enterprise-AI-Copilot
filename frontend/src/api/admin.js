@@ -73,6 +73,8 @@ export const knowledgeManagementAPI = {
   list: (categoryId) =>
     api.get(`/knowledge/list${categoryId ? `?categoryId=${categoryId}` : ''}`),
   delete: (id) => api.delete(`/knowledge/${id}`),
+  retryParse: (id, filePath) =>
+    api.post('/knowledge/retry-parse', { id, filePath }),
 };
 
 export const qaLogAPI = {

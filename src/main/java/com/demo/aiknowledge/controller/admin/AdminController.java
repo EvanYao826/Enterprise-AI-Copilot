@@ -74,6 +74,14 @@ public class AdminController {
     public Result<List<KnowledgeDoc>> listDocs(@RequestParam(required = false) Long categoryId) {
         return Result.success(knowledgeService.listDocs(categoryId));
     }
+
+    @PostMapping("/knowledge/retry-parse")
+    public Result<Void> retryParse(@RequestBody Map<String, Object> request) {
+        Long id = Long.parseLong(request.get("id").toString());
+        String filePath = (String) request.get("filePath");
+        aiService.parseDocument(filePath, id);
+        return Result.success(null);
+    }
     
     // --- 问答日志管理 ---
     @GetMapping("/logs")

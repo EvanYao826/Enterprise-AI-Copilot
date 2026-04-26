@@ -104,12 +104,28 @@ export default function KnowledgeManagement() {
 
   const getStatusBadge = (status) => {
     const statusMap = {
-      'PENDING': { text: '处理中', className: 'pending' },
+      'PENDING': { text: '待处理', className: 'pending' },
+      'PROCESSING': { text: '处理中', className: 'processing' },
       'COMPLETED': { text: '已完成', className: 'completed' },
       'FAILED': { text: '失败', className: 'failed' }
     };
     const info = statusMap[status] || { text: status, className: '' };
     return <span className={`status-badge ${info.className}`}>{info.text}</span>;
+  };
+
+  const handleRetry = async (id, filePath) => {
+    try {
+      await knowledgeManagementAPI.retryParse(id, filePath);
+      loadDocuments();
+      setMessageModalTitle('成功');
+      setMessageModalContent('重试解析成功');
+      setShowMessageModal(true);
+    } catch (err) {
+      console.error('重试解析失败:', err);
+      setMessageModalTitle('错误');
+      setMessageModalContent('重试失败: ' + (err.message || '未知错误'));
+      setShowMessageModal(true);
+    }
   };
 
   return (
@@ -185,11 +201,22 @@ export default function KnowledgeManagement() {
                   <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {doc.docName}
                   </td>
-                  <td>{getStatusBadge(doc.status)}</td>
+                  <td>
+                    {getStatusBadge(doc.status)}
+                    {doc.status === 'FAILED' && doc.errorMessage && (
+                      <div style={{ fontSize: '12px', color: '#f44336', marginTop: '4px' }}>
+                        {doc.errorMessage.length > 50 
+                          ? doc.errorMessage.substring(0, 50) + '...' 
+                          : doc.errorMessage
+                        }
+                      </div>
+                    )}
+                  </td>
                   <td>
                     {doc.createTime
                       ? new Date(doc.createTime).toLocaleString('zh-CN')
-                      : '-'}
+                      : '-'
+                    }
                   </td>
                   <td>
                     <button
@@ -198,6 +225,14 @@ export default function KnowledgeManagement() {
                     >
                       删除
                     </button>
+                    {doc.status === 'FAILED' && (
+                      <button
+                        className="action-btn retry"
+                        onClick={() => handleRetry(doc.id, doc.filePath)}
+                      >
+                        重试
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

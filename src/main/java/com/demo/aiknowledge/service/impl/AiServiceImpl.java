@@ -75,6 +75,15 @@ public class AiServiceImpl implements AiService {
     @Async
     public void parseDocument(String filePath, Long docId) {
         log.info("Start parsing document: {}, docId: {}", filePath, docId);
+        
+        // 更新文档状态为PROCESSING
+        KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
+        if (doc != null) {
+            doc.setStatus("PROCESSING");
+            doc.setErrorMessage(null); // 清除之前的错误信息
+            knowledgeDocMapper.updateById(doc);
+        }
+        
         try {
             // 构建请求体
             Map<String, Object> requestBody = new HashMap<>();
@@ -90,26 +99,27 @@ public class AiServiceImpl implements AiService {
             ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
             
             if (response.getStatusCode().is2xxSuccessful()) {
-                // 更新文档状态
-                KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
+                // 更新文档状态为COMPLETED
                 if (doc != null) {
                     doc.setStatus("COMPLETED");
+                    doc.setErrorMessage(null);
                     knowledgeDocMapper.updateById(doc);
                 }
                 log.info("Document parsed successfully: {}", docId);
             } else {
-                throw new RuntimeException("AI Service returned error: " + response.getStatusCode());
+                String errorMessage = "AI Service returned error: " + response.getStatusCode();
+                throw new RuntimeException(errorMessage);
             }
 
         } catch (Exception e) {
-            log.error("Document parsing failed, using local fallback", e);
-            // 当Python服务失败时，本地模拟解析完成
-            KnowledgeDoc doc = knowledgeDocMapper.selectById(docId);
+            log.error("Document parsing failed", e);
+            // 更新文档状态为FAILED并记录错误原因
             if (doc != null) {
-                doc.setStatus("COMPLETED");
+                doc.setStatus("FAILED");
+                doc.setErrorMessage(e.getMessage());
                 knowledgeDocMapper.updateById(doc);
             }
-            log.info("Document parsing fallback to local: {}", docId);
+            log.error("Document parsing failed: {}, error: {}", docId, e.getMessage());
         }
     }
 
