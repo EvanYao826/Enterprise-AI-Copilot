@@ -5,9 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.demo.aiknowledge.entity.ToolCall;
 import com.demo.aiknowledge.mapper.ToolCallMapper;
 import com.demo.aiknowledge.service.ToolCallService;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
