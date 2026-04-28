@@ -28,6 +28,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -69,6 +70,49 @@ public class AiServiceImpl implements AiService {
             }
         }
         return false;
+    }
+
+    /**
+     * 判断回答是否是错误响应
+     * @param answer 回答内容
+     * @return 是否是错误响应
+     */
+    private boolean isErrorResponse(String answer) {
+        if (answer == null) {
+            return true;
+        }
+        String[] errorKeywords = {
+            "AI服务暂时不可用",
+            "服务不可用",
+            "系统错误",
+            "无法连接",
+            "网络错误",
+            "暂时无法回答",
+            "稍后再试"
+        };
+        for (String keyword : errorKeywords) {
+            if (answer.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 获取友好的错误提示语
+     * @param errorType 错误类型
+     * @return 友好的错误提示
+     */
+    private String getFriendlyErrorMessage(String errorType) {
+        String[] friendlyMessages = {
+            "正在努力处理您的问题，请稍等片刻...",
+            "系统正在维护中，很快就会恢复，请稍后再试",
+            "服务暂时繁忙，请稍后重试",
+            "我正在连接知识库，请耐心等待",
+            "让我想想，马上为您解答"
+        };
+        int index = Math.abs(errorType.hashCode()) % friendlyMessages.length;
+        return friendlyMessages[index];
     }
 
     @Override
@@ -139,8 +183,13 @@ public class AiServiceImpl implements AiService {
                 AiResponse.class
             );
             if (cachedResponse != null) {
-                log.info("Cache hit for question: {}", question);
-                return cachedResponse;
+                // 如果缓存的是错误响应，不使用缓存，重新请求
+                if (isErrorResponse(cachedResponse.getAnswer())) {
+                    log.info("Cache hit but contains error response, refreshing...");
+                } else {
+                    log.info("Cache hit for question: {}", question);
+                    return cachedResponse;
+                }
             }
 
             // 2. 构建请求
@@ -174,8 +223,9 @@ public class AiServiceImpl implements AiService {
                 // 捕获网络层面的异常（如 ConnectionRefused, Timeout, UnknownHost）
                 log.error(">>> [AI Service] 网络调用失败！无法连接到 Python 服务。URL: {}", url, e);
                 // 返回友好的错误响应，不暴露技术细节
-                aiResponse.setAnswer("抱歉，AI服务暂时不可用，请稍后再试。");
+                aiResponse.setAnswer(getFriendlyErrorMessage("network"));
                 aiResponse.setSources(null);
+                // 不要缓存错误响应
                 return aiResponse;
             }
 
@@ -190,12 +240,14 @@ public class AiServiceImpl implements AiService {
                 if (!body.containsKey("answer")) {
                     log.error(">>> [AI Service] Python 服务返回数据格式错误，缺少 'answer' 字段。完整响应：{}", body);
                     // 返回友好的错误响应，不暴露技术细节
-                    aiResponse.setAnswer("抱歉，AI服务返回异常，请稍后再试。");
+                    aiResponse.setAnswer(getFriendlyErrorMessage("format"));
                     aiResponse.setSources(null);
+                    // 不要缓存错误响应
                     return aiResponse;
                 }
 
-                aiResponse.setAnswer((String) body.get("answer"));
+                String answer = (String) body.get("answer");
+                aiResponse.setAnswer(answer);
 
                 // 检查问题是否需要参考来源
                 if (!isGeneralQuestion(question) && body.containsKey("sources")) {
@@ -213,20 +265,23 @@ public class AiServiceImpl implements AiService {
                     aiResponse.setSources(null);
                 }
 
-                // 缓存结果（使用新的缓存服务）
-                cacheService.set(
-                    CacheConfig.CacheConstants.CACHE_AI_ANSWER,
-                    cacheKey,
-                    aiResponse
-                );
+                // 只缓存非错误响应
+                if (!isErrorResponse(answer)) {
+                    cacheService.set(
+                        CacheConfig.CacheConstants.CACHE_AI_ANSWER,
+                        cacheKey,
+                        aiResponse
+                    );
+                }
 
                 return aiResponse;
             } else {
                 // 处理非 2xx 状态码 (如 404, 500)
                 log.error(">>> [AI Service] Python 服务返回错误状态码: {}, 响应体：{}", response.getStatusCode(), response.getBody());
                 // 返回友好的错误响应，不暴露技术细节
-                aiResponse.setAnswer("抱歉，AI服务暂时不可用，请稍后再试。");
+                aiResponse.setAnswer(getFriendlyErrorMessage("status"));
                 aiResponse.setSources(null);
+                // 不要缓存错误响应
                 return aiResponse;
             }
 
@@ -237,8 +292,9 @@ public class AiServiceImpl implements AiService {
             // 捕获其他未知异常
             log.error(">>> [AI Service] 发生未知异常", e);
             // 返回友好的错误响应，不暴露技术细节
-            aiResponse.setAnswer("抱歉，AI服务暂时不可用，请稍后再试。");
+            aiResponse.setAnswer(getFriendlyErrorMessage("unknown"));
             aiResponse.setSources(null);
+            // 不要缓存错误响应
             return aiResponse;
         }
     }

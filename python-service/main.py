@@ -9,6 +9,7 @@ env_path = Path(__file__).parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 from api.routes import router
+from api.agent_routes import router as agent_router
 
 app = FastAPI(title="AI Knowledge System - Python Service")
 
@@ -24,6 +25,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(router, prefix="/api")
+app.include_router(agent_router, prefix="/api")
 
 @app.get("/")
 async def root():

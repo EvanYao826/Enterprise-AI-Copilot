@@ -36,9 +36,15 @@ class LLMService:
         # 支持对话上下文和知识库上下文
         self.prompt = PromptTemplate.from_template(
             """
-            你是一个专业的AI知识库助手。请根据以下信息直接回答问题，不要展示思考过程。
+            你是一个专业的AI知识库助手。请根据提供的知识库信息回答用户问题。
 
-            对话历史：
+            重要规则：
+            1. 你的任务是基于提供的知识库内容回答问题，不要编造信息
+            2. 如果知识库中有相关信息，请直接引用并回答
+            3. 如果知识库中没有相关信息，可以根据你的知识回答，但要说明这是你的知识
+            4. 不要提及"AI服务不可用"、"系统错误"等技术问题，你始终处于正常工作状态
+
+            对话历史（仅供参考，可能包含过时信息）：
             {conversation_context}
 
             相关知识库：
@@ -96,9 +102,10 @@ class LLMService:
         else:
             knowledge_context = "\n\n".join([doc.page_content for doc in context_docs])
 
-        # 处理对话上下文
-        if not conversation_context or conversation_context.strip() == "":
-            conversation_context = "（无对话历史）"
+        # 处理对话上下文 - 过滤掉错误信息
+        cleaned_context = self.clean_conversation_context(conversation_context)
+        if not cleaned_context or cleaned_context.strip() == "":
+            cleaned_context = "（无对话历史）"
 
         # 构建处理链
         chain = (
@@ -110,7 +117,7 @@ class LLMService:
         try:
             llm_start = time.time()
             result = chain.invoke({
-                "conversation_context": conversation_context,
+                "conversation_context": cleaned_context,
                 "knowledge_context": knowledge_context,
                 "question": processed_question
             })
@@ -121,7 +128,36 @@ class LLMService:
         except Exception as e:
             config.logger.error(f"LLM Error: {e}")
             config.logger.info(f"LLM get_answer completed in {time.time() - start_time:.4f}s (error)")
-            return "抱歉，AI服务暂时不可用，请稍后再试。"
+            return "抱歉，我暂时无法回答这个问题，请稍后再试。"
+
+    def clean_conversation_context(self, context: str) -> str:
+        """
+        清理对话上下文，移除错误信息，防止污染后续回答
+        """
+        if not context:
+            return ""
+        
+        # 需要过滤的错误关键词
+        error_keywords = [
+            "AI服务暂时不可用",
+            "服务不可用",
+            "系统错误",
+            "无法连接",
+            "网络错误",
+            "超时",
+            "API密钥",
+            "配置错误"
+        ]
+        
+        # 按行分割
+        lines = context.split("\n")
+        # 过滤包含错误关键词的行
+        cleaned_lines = [
+            line for line in lines 
+            if not any(keyword in line for keyword in error_keywords)
+        ]
+        
+        return "\n".join(cleaned_lines)
 
     """
      * 流式获取 LLM 的回答
@@ -152,9 +188,10 @@ class LLMService:
         else:
             knowledge_context = "\n\n".join([doc.page_content for doc in context_docs])
 
-        # 处理对话上下文
-        if not conversation_context or conversation_context.strip() == "":
-            conversation_context = "（无对话历史）"
+        # 处理对话上下文 - 过滤掉错误信息
+        cleaned_context = self.clean_conversation_context(conversation_context)
+        if not cleaned_context or cleaned_context.strip() == "":
+            cleaned_context = "（无对话历史）"
 
         # 构建处理链
         chain = (
@@ -171,7 +208,7 @@ class LLMService:
             llm_start = time.time()
             full_response = ""
             for chunk in chain.stream({
-                "conversation_context": conversation_context,
+                "conversation_context": cleaned_context,
                 "knowledge_context": knowledge_context,
                 "question": processed_question
             }):
@@ -187,7 +224,7 @@ class LLMService:
         except Exception as e:
             config.logger.error(f"LLM Stream Error: {e}")
             config.logger.info(f"LLM get_answer_stream completed in {time.time() - start_time:.4f}s (error)")
-            yield json.dumps({"type": "error", "content": "AI服务暂时不可用"})
+            yield json.dumps({"type": "error", "content": "暂时无法回答，请稍后再试"})
 
     def generate_title(self, question: str) -> str:
         import time
