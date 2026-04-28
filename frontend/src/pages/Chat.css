@@ -1079,3 +1079,136 @@
     transform: translateY(0);
   }
 }
+
+/* ========================================
+   Processing Indicator Styles
+   ======================================== */
+
+.processing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.processing-icon {
+  font-size: 24px;
+  animation: bounce 1.5s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.processing-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.processing-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.processing-dots .dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.processing-dots .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.processing-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.processing-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ========================================
+   Message Feedback Styles (Like/Dislike)
+   ======================================== */
+
+.message-feedback {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.feedback-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  font-size: 16px;
+  transition: all var(--transition-normal);
+  opacity: 0.6;
+}
+
+.feedback-btn:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.feedback-btn.active {
+  opacity: 1;
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: white;
+}
+
+.feedback-btn.like.active {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.feedback-btn.dislike.active {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.feedback-btn.like:hover:not(.active) {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.feedback-btn.dislike:hover:not(.active) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}

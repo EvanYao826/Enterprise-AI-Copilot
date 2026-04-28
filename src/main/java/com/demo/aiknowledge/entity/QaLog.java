@@ -14,5 +14,7 @@ public class QaLog {
     private Long userId;
     private String question;
     private String answer;
+    private String feedbackType; // 反馈类型（like/dislike）
+    private LocalDateTime feedbackTime; // 反馈时间
     private LocalDateTime createTime;
 }

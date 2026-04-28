@@ -74,6 +74,9 @@ public class ConversationContextServiceImpl implements ConversationContextServic
                         .last("LIMIT " + Math.max(maxMessages, DEFAULT_WINDOW_SIZE))
         );
 
+        // 确保从数据库获取时包含反馈字段（数据库查询会自动返回所有字段）
+        log.debug("Fetched {} messages from DB with feedbackType fields", messages != null ? messages.size() : 0);
+
         if (messages != null && !messages.isEmpty()) {
             // 回写缓存 (存入实体对象，Redis 序列化器会处理，但读取时仍可能变 Map，所以读取端必须兼容)
             cacheService.set(

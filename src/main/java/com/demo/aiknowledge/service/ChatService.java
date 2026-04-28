@@ -11,4 +11,5 @@ public interface ChatService {
     List<Message> getMessages(Long conversationId);
     void deleteConversation(Long conversationId);
     Conversation updateConversation(Long conversationId, String title, Boolean isPinned);
+    Message submitFeedback(Long messageId, String feedbackType);
 }

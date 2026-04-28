@@ -11,6 +11,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [processingStep, setProcessingStep] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -58,11 +59,9 @@ export default function Chat() {
   const getFileInfo = (fullName) => {
     if (!fullName) return { icon: '📄', name: '相关文档' };
     
-    // 1. 去除 UUID 前缀 (匹配 8-4-4-4-12_ 格式)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_/i;
     const cleanName = fullName.replace(uuidRegex, '');
     
-    // 2. 根据后缀匹配图标
     const ext = cleanName.split('.').pop().toLowerCase();
     let icon = '📄';
     switch (ext) {
@@ -96,7 +95,6 @@ export default function Chat() {
               const { icon, name } = getFileInfo(s.doc || s.doc_name);
               return (
                 <li key={i}>
-                  {/* 如果 source 字段是 URL，直接打开；否则跳转到内部知识库页面 */}
                   {s.source && (s.source.startsWith('http://') || s.source.startsWith('https://')) ? (
                       <span className="source-link" onClick={() => window.open(s.source, '_blank')}>
                         {icon} {name}
@@ -214,9 +212,13 @@ export default function Chat() {
     try {
       const response = await chatAPI.getMessages(conversationId);
       const messages = response.data || [];
-      // 按createTime排序，确保消息按时间顺序显示
-      messages.sort((a, b) => new Date(a.createTime) - new Date(b.createTime));
-      setMessages(messages);
+      // 确保每条消息都有 feedbackType 字段，防止后端返回的数据中缺少该字段
+      const messagesWithFeedback = messages.map(msg => ({
+        ...msg,
+        feedbackType: msg.feedbackType || msg.feedback || null
+      }));
+      messagesWithFeedback.sort((a, b) => new Date(a.createTime) - new Date(b.createTime));
+      setMessages(messagesWithFeedback);
     } catch (err) {
       console.error('加载消息失败:', err);
     }
@@ -243,7 +245,6 @@ export default function Chat() {
     if (!inputMessage.trim() && !uploadedImage) return;
     if (!currentConversation) return;
 
-    // 构建用户消息内容
     let messageContent = inputMessage;
     if (uploadedImage) {
       messageContent = `[图片: ${uploadedImage.name}]\n${inputMessage}`;
@@ -258,7 +259,6 @@ export default function Chat() {
       createTime: new Date().toISOString()
     };
 
-    // 创建AI思考中的消息
     const thinkingMessageId = Date.now() + 1;
     const thinkingMessage = {
       id: thinkingMessageId,
@@ -266,10 +266,10 @@ export default function Chat() {
       role: 'assistant',
       content: '',
       isStreaming: true,
+      processingStep: null,
       createTime: new Date().toISOString()
     };
 
-    // 生成唯一的请求ID
     const requestId = Date.now() + Math.random();
 
     setMessages(prev => [...prev, userMessage, thinkingMessage]);
@@ -277,19 +277,17 @@ export default function Chat() {
     setUploadedImage(null);
     setUploadedImageId(null);
     setLoading(true);
+    setProcessingStep('understanding');
 
-    // 创建AbortController用于中断
     const controller = new AbortController();
     setAbortController(controller);
 
     try {
-      // 构建发送给AI的内容
       let aiRequestContent = inputMessage;
       if (uploadedImage && uploadedImageId) {
         aiRequestContent = `请根据图片内容回答问题。图片ID: ${uploadedImageId}\n图片名称: ${uploadedImage.name}\n图片URL: ${uploadedImage.url}\n问题: ${inputMessage}`;
       }
 
-      // 使用非流式API
       const response = await chatAPI.sendMessage({
         userId,
         conversationId: currentConversation.id,
@@ -298,31 +296,39 @@ export default function Chat() {
         signal: controller.signal
       });
 
-      // 检查请求是否已被中断
       if (abortedRequests.has(requestId)) {
         console.log('Request was aborted, skipping response processing');
         return;
       }
 
-      // 替换思考消息为完整响应
-      const aiMessage = {
-        id: thinkingMessageId,
-        conversationId: currentConversation.id,
-        role: 'assistant',
-        content: response.data.content,
-        sources: response.data.sources,
-        createTime: new Date().toISOString()
-      };
+      setProcessingStep('retrieving');
+      
+      setTimeout(() => {
+        setProcessingStep('generating');
+      }, 300);
 
-      setMessages(prev => prev.map(msg => msg.id === thinkingMessageId ? aiMessage : msg));
-      setLoading(false);
-      setAbortController(null);
+      setTimeout(() => {
+        // 使用后端返回的真实消息ID，确保反馈功能正常工作
+        const aiMessage = {
+          id: response.data.id || thinkingMessageId,
+          conversationId: currentConversation.id,
+          role: 'assistant',
+          content: response.data.content,
+          sources: response.data.sources,
+          feedbackType: response.data.feedbackType || null,
+          createTime: response.data.createTime || new Date().toISOString()
+        };
 
-      // 刷新会话列表
-      loadConversations();
+        setMessages(prev => prev.map(msg => msg.id === thinkingMessageId ? aiMessage : msg));
+        setLoading(false);
+        setProcessingStep(null);
+        setAbortController(null);
+
+        loadConversations();
+      }, 500);
+
     } catch (err) {
       if (err.name === 'AbortError') {
-        // 用户手动中断
         const abortedMessage = {
           id: thinkingMessageId,
           conversationId: currentConversation.id,
@@ -331,12 +337,20 @@ export default function Chat() {
           createTime: new Date().toISOString()
         };
         setMessages(prev => prev.map(msg => msg.id === thinkingMessageId ? abortedMessage : msg));
-        // 将请求ID添加到已中断集合
         setAbortedRequests(prev => new Set(prev).add(requestId));
       } else {
         console.error('发送消息失败:', err);
+        const errorMessage = {
+          id: thinkingMessageId,
+          conversationId: currentConversation.id,
+          role: 'assistant',
+          content: '抱歉，我暂时无法回答这个问题，请稍后再试。',
+          createTime: new Date().toISOString()
+        };
+        setMessages(prev => prev.map(msg => msg.id === thinkingMessageId ? errorMessage : msg));
       }
       setLoading(false);
+      setProcessingStep(null);
       setAbortController(null);
     }
   };
@@ -344,25 +358,41 @@ export default function Chat() {
   const handleStopGeneration = () => {
     if (abortController) {
       abortController.abort();
-      // 立即更新UI，显示已终止回答
       setMessages(prev => {
-        // 找到最后一条AI消息（思考中状态）
-        const lastAssistantMessageIndex = prev.lastIndexOf(
-          prev.find(msg => msg.role === 'assistant' && msg.isStreaming)
+        const lastAssistantMessageIndex = prev.findLastIndex(
+          msg => msg.role === 'assistant' && (msg.isStreaming || msg.processingStep)
         );
         if (lastAssistantMessageIndex !== -1) {
           const updatedMessages = [...prev];
           updatedMessages[lastAssistantMessageIndex] = {
             ...updatedMessages[lastAssistantMessageIndex],
             content: '已终止回答',
-            isStreaming: false
+            isStreaming: false,
+            processingStep: null
           };
           return updatedMessages;
         }
         return prev;
       });
       setLoading(false);
+      setProcessingStep(null);
       setAbortController(null);
+    }
+  };
+
+  const handleFeedback = async (messageId, type) => {
+    try {
+      const response = await chatAPI.submitFeedback(messageId, type);
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, feedbackType: type }
+          : msg
+      ));
+      
+      console.log(`Feedback ${type} recorded for message ${messageId}`);
+    } catch (err) {
+      console.error('提交反馈失败:', err);
     }
   };
 
@@ -373,7 +403,6 @@ export default function Chat() {
   };
 
   const handleImageUploadClick = () => {
-    // 触发隐藏的文件输入
     fileInputRef.current?.click();
   };
 
@@ -381,7 +410,6 @@ export default function Chat() {
     const file = e.target.files[0];
     if (!file || !currentConversation) return;
 
-    // 检查文件类型
     if (!file.type.startsWith('image/')) {
       alert('请选择图片文件');
       return;
@@ -390,11 +418,7 @@ export default function Chat() {
     setUploadingImage(true);
 
     try {
-      // 调用临时图片上传API
       const result = await chatAPI.uploadImage(file);
-      
-      // 上传成功，显示在输入框上方
-      // result是response.data，其中包含code和data字段
       const imageData = result.data || result;
       setUploadedImage({
         name: file.name,
@@ -423,26 +447,17 @@ export default function Chat() {
     setPreviewImage(null);
   };
 
-  // 获取Cookie的辅助函数
-  function getCookie(name) {
-    const cookieName = `${name}=`;
-    const decodedCookie = decodeURIComponent(document.cookie);
-    const cookieArray = decodedCookie.split(';');
-    for (let i = 0; i < cookieArray.length; i++) {
-      let cookie = cookieArray[i];
-      while (cookie.charAt(0) === ' ') {
-        cookie = cookie.substring(1);
-      }
-      if (cookie.indexOf(cookieName) === 0) {
-        return cookie.substring(cookieName.length, cookie.length);
-      }
-    }
-    return '';
-  }
+  const getProcessingMessage = () => {
+    const steps = {
+      understanding: { icon: '🧠', text: '正在理解您的问题...' },
+      retrieving: { icon: '🔍', text: '正在检索知识库...' },
+      generating: { icon: '✍️', text: '正在生成回答...' }
+    };
+    return steps[processingStep] || null;
+  };
 
   return (
     <div className="chat-layout">
-      {/* Sidebar */}
       <div className="chat-sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo" onClick={() => navigate('/')}>
@@ -509,7 +524,6 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Main chat area */}
       <div className="chat-main">
         {currentConversation ? (
           <>
@@ -533,19 +547,50 @@ export default function Chat() {
                         {msg.role === 'user' ? '👤' : '🤖'}
                       </div>
                       <div className="message-body">
-                        {msg.content}
-                        {msg.imageUrl && (
-                          <div className="message-image">
-                            <img 
-                              src={msg.imageUrl} 
-                              alt="用户上传的图片" 
-                              onClick={() => handleImageClick(msg.imageUrl)}
-                            />
+                        {msg.role === 'assistant' && msg.isStreaming && processingStep ? (
+                          <div className="processing-indicator">
+                            <div className="processing-icon">{getProcessingMessage()?.icon}</div>
+                            <div className="processing-text">{getProcessingMessage()?.text}</div>
+                            <div className="processing-dots">
+                              <span className="dot"></span>
+                              <span className="dot"></span>
+                              <span className="dot"></span>
+                            </div>
                           </div>
+                        ) : (
+                          <>
+                            {msg.content}
+                            {msg.imageUrl && (
+                              <div className="message-image">
+                                <img 
+                                  src={msg.imageUrl} 
+                                  alt="用户上传的图片" 
+                                  onClick={() => handleImageClick(msg.imageUrl)}
+                                />
+                              </div>
+                            )}
+                            {msg.role === 'assistant' && msg.sources && renderSources(msg.sources)}
+                          </>
                         )}
-                        {msg.isStreaming && <span className="typing-cursor">▋</span>}
-                        {msg.role === 'assistant' && msg.sources && renderSources(msg.sources)}
                       </div>
+                      {msg.role === 'assistant' && !msg.isStreaming && !msg.processingStep && (
+                        <div className="message-feedback">
+                          <button 
+                            className={`feedback-btn like ${msg.feedbackType === 'like' ? 'active' : ''}`}
+                            onClick={() => handleFeedback(msg.id, 'like')}
+                            title="点赞"
+                          >
+                            👍
+                          </button>
+                          <button 
+                            className={`feedback-btn dislike ${msg.feedbackType === 'dislike' ? 'active' : ''}`}
+                            onClick={() => handleFeedback(msg.id, 'dislike')}
+                            title="点踩"
+                          >
+                            👎
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -555,7 +600,6 @@ export default function Chat() {
 
             <div className="input-container">
               <div className="input-wrapper">
-                {/* 上传的图片预览 */}
                 {uploadedImage && (
                   <div className="uploaded-image-preview">
                     <div className="image-info">
@@ -633,7 +677,6 @@ export default function Chat() {
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -655,7 +698,6 @@ export default function Chat() {
         </div>
       )}
 
-      {/* 图片预览模态框 */}
       {previewImage && (
         <div className="image-preview-overlay" onClick={handleClosePreview}>
           <div className="image-preview-content" onClick={(e) => e.stopPropagation()}>

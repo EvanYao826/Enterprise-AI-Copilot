@@ -2,6 +2,7 @@ package com.demo.aiknowledge.controller;
 
 import com.demo.aiknowledge.common.Result;
 import com.demo.aiknowledge.dto.ChatRequest;
+import com.demo.aiknowledge.dto.FeedbackRequest;
 import com.demo.aiknowledge.entity.Conversation;
 import com.demo.aiknowledge.entity.Message;
 import com.demo.aiknowledge.service.ChatService;
@@ -134,6 +135,12 @@ public class ChatController {
             case ".bmp": return "image/bmp";
             default: return "application/octet-stream";
         }
+    }
+
+    // 消息反馈接口
+    @PostMapping("/messages/feedback")
+    public Result<Message> submitFeedback(@RequestBody FeedbackRequest request) {
+        return Result.success(chatService.submitFeedback(request.getMessageId(), request.getFeedbackType()));
     }
 
     // 清理临时文件（可选）

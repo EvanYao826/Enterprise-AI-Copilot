@@ -1,6 +1,7 @@
 package com.demo.aiknowledge.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.demo.aiknowledge.config.CacheConfig;
 import com.demo.aiknowledge.dto.AiResponse;
 import com.demo.aiknowledge.entity.Conversation;
 import com.demo.aiknowledge.entity.Message;
@@ -9,6 +10,7 @@ import com.demo.aiknowledge.mapper.ConversationMapper;
 import com.demo.aiknowledge.mapper.MessageMapper;
 import com.demo.aiknowledge.mapper.QaLogMapper;
 import com.demo.aiknowledge.service.AiService;
+import com.demo.aiknowledge.service.CacheService;
 import com.demo.aiknowledge.service.ChatService;
 import com.demo.aiknowledge.service.ConversationContextService;
 import com.demo.aiknowledge.service.QaUnansweredService;
@@ -33,6 +35,7 @@ public class ChatServiceImpl implements ChatService {
     private final QaUnansweredService qaUnansweredService;
     private final ConversationContextService conversationContextService;
     private final ObjectMapper objectMapper;
+    private final CacheService cacheService;
 
     @Override
     public Conversation createConversation(Long userId, String title) {
@@ -155,5 +158,40 @@ public class ChatServiceImpl implements ChatService {
         messageMapper.delete(new LambdaQueryWrapper<Message>().eq(Message::getConversationId, conversationId));
         // 删除会话本身
         conversationMapper.deleteById(conversationId);
+    }
+
+    @Override
+    @Transactional
+    public Message submitFeedback(Long messageId, String feedbackType) {
+        // 1. 查找消息
+        Message message = messageMapper.selectById(messageId);
+        if (message == null) {
+            throw new RuntimeException("消息不存在");
+        }
+
+        // 2. 更新反馈字段
+        message.setFeedbackType(feedbackType);
+        message.setFeedbackTime(LocalDateTime.now());
+        messageMapper.updateById(message);
+
+        // 3. 清除该会话的缓存，确保下次获取时从数据库读取最新数据
+        String cacheKey = CacheConfig.CacheConstants.KEY_CONVERSATION_CONTEXT + message.getConversationId();
+        cacheService.delete(CacheConfig.CacheConstants.CACHE_CONVERSATION_CONTEXT, cacheKey);
+        log.debug("Cleared conversation context cache for conversationId: {}", message.getConversationId());
+
+        // 4. 如果是AI消息，同步更新QA日志的反馈
+        if ("assistant".equals(message.getRole())) {
+            QaLog qaLog = qaLogMapper.selectOne(new LambdaQueryWrapper<QaLog>()
+                    .eq(QaLog::getAnswer, message.getContent())
+                    .orderByDesc(QaLog::getCreateTime)
+                    .last("LIMIT 1"));
+            if (qaLog != null) {
+                qaLog.setFeedbackType(feedbackType);
+                qaLog.setFeedbackTime(LocalDateTime.now());
+                qaLogMapper.updateById(qaLog);
+            }
+        }
+
+        return message;
     }
 }

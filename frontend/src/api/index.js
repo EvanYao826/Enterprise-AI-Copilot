@@ -193,6 +193,9 @@ export const chatAPI = {
   },
   // 查看临时图片
   viewImage: (id) => api.get(`/chat/view/image/${id}`),
+  // 提交消息反馈
+  submitFeedback: (messageId, feedbackType) => 
+    api.post('/chat/messages/feedback', { messageId, feedbackType }),
 };
 
 // Knowledge API

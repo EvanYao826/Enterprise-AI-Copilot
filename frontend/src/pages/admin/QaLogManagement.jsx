@@ -70,6 +70,7 @@ export default function QaLogManagement() {
                   <th>用户ID</th>
                   <th>问题</th>
                   <th>回答</th>
+                  <th>反馈</th>
                   <th>时间</th>
                   <th>操作</th>
                 </tr>
@@ -84,6 +85,15 @@ export default function QaLogManagement() {
                     </td>
                     <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {truncateText(log.answer)}
+                    </td>
+                    <td>
+                      {log.feedbackType === 'like' ? (
+                        <span className="feedback-badge like">👍 点赞</span>
+                      ) : log.feedbackType === 'dislike' ? (
+                        <span className="feedback-badge dislike">👎 点踩</span>
+                      ) : (
+                        <span className="feedback-badge none">-</span>
+                      )}
                     </td>
                     <td style={{ minWidth: '150px' }}>
                       {log.createTime
@@ -162,6 +172,26 @@ export default function QaLogManagement() {
                 <label>回答:</label>
                 <div className="detail-text">{selectedLog.answer || '-'}</div>
               </div>
+              <div className="detail-item">
+                <label>反馈:</label>
+                <span>
+                  {selectedLog.feedbackType === 'like' ? (
+                    <span className="feedback-badge like">👍 点赞</span>
+                  ) : selectedLog.feedbackType === 'dislike' ? (
+                    <span className="feedback-badge dislike">👎 点踩</span>
+                  ) : (
+                    '- 无反馈'
+                  )}
+                </span>
+              </div>
+              {selectedLog.feedbackTime && (
+                <div className="detail-item">
+                  <label>反馈时间:</label>
+                  <span>
+                    {new Date(selectedLog.feedbackTime).toLocaleString('zh-CN')}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

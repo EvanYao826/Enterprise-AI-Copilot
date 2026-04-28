@@ -466,3 +466,25 @@
   background-color: #1890ff;
   border-color: #1890ff;
 }
+
+/* Feedback Badge Styles */
+.feedback-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.feedback-badge.like {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.feedback-badge.dislike {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.feedback-badge.none {
+  color: #999;
+}
