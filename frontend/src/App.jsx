@@ -11,6 +11,7 @@ import KnowledgeManagement from './pages/admin/KnowledgeManagement';
 import QaLogManagement from './pages/admin/QaLogManagement';
 import Dashboard from './pages/admin/Dashboard';
 import NoticeManagement from './pages/admin/NoticeManagement';
+import AgentRunManagement from './pages/admin/AgentRunManagement';
 
 const Layout = () => {
   const location = useLocation();
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="knowledge" element={<KnowledgeManagement />} />
           <Route path="logs" element={<QaLogManagement />} />
           <Route path="notices" element={<NoticeManagement />} />
+          <Route path="agent-runs" element={<AgentRunManagement />} />
         </Route>
 
         {/* Default Routes */}

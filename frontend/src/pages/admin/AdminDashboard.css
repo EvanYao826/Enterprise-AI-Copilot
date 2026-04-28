@@ -248,6 +248,39 @@
   background-color: #bae7ff;
 }
 
+/* Detail Content */
+.detail-content {
+  padding: 16px;
+}
+
+.detail-row {
+  display: flex;
+  margin-bottom: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-label {
+  width: 100px;
+  font-weight: 500;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  flex: 1;
+  color: #333;
+  word-break: break-all;
+}
+
+.text-primary {
+  color: #1890ff;
+}
+
+.text-error {
+  color: #ff4d4f;
+}
+
 .action-btn.delete {
   background-color: #fff1f0;
   color: #ff4d4f;
@@ -312,6 +345,84 @@
   background-color: #f6ffed;
 }
 
+/* Search Bar */
+.search-bar {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.search-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-item label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  white-space: nowrap;
+}
+
+.search-item input,
+.search-item select {
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 120px;
+}
+
+.search-item input:focus,
+.search-item select:focus {
+  outline: none;
+  border-color: #40a9ff;
+}
+
+.search-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.3s;
+}
+
+.btn-primary {
+  background-color: #1890ff;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #40a9ff;
+}
+
+.btn-default {
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #d9d9d9;
+}
+
+.btn-default:hover {
+  background-color: #e8e8e8;
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -350,7 +461,7 @@
   color: #333;
 }
 
-.close-btn {
+.modal-close {
   background: transparent;
   border: none;
   font-size: 24px;
@@ -366,7 +477,7 @@
   transition: all 0.3s;
 }
 
-.close-btn:hover {
+.modal-close:hover {
   background-color: #f5f5f5;
   color: #333;
 }
