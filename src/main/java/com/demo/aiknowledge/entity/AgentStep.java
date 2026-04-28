@@ -14,6 +14,7 @@ public class AgentStep {
     private String id;
     
     private String runId;
+    private String stepType;
     private String stepName;
     private String status;
     private String input;
@@ -22,4 +23,6 @@ public class AgentStep {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private LocalDateTime createdAt;
+    private Long durationMs;
+    private String toolCallId;
 }

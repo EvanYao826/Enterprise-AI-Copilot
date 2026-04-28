@@ -14,13 +14,16 @@ public class AgentRun {
     private String id;
     
     private String runId;
+    private String traceId;
     private String conversationId;
     private String userId;
     private String status;
+    private String goal;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String input;
     private String output;
     private String errorMessage;
+    private String errorCode;
     private LocalDateTime createdAt;
 }
