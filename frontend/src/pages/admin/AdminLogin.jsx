@@ -44,6 +44,18 @@ export default function AdminLogin() {
 
   return (
     <div className="auth-container">
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle-line"></div>
+      <div className="particle-line"></div>
+      <div className="particle-line"></div>
+      <div className="particle-line"></div>
       <div className="auth-card">
         <h1 className="auth-title">AI 知识管理系统</h1>
         <h2 className="auth-subtitle">管理员登录</h2>

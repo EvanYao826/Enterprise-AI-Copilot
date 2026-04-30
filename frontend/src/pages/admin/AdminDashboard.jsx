@@ -31,6 +31,7 @@ export default function AdminDashboard() {
     else if (path.includes('/logs')) setActiveMenu('logs');
     else if (path.includes('/notices')) setActiveMenu('notices');
     else if (path.includes('/agent-runs')) setActiveMenu('agent-runs');
+    else if (path.includes('/inspection')) setActiveMenu('inspection');
   }, [navigate, location.pathname]);
 
   const handleLogout = () => {
@@ -43,8 +44,9 @@ export default function AdminDashboard() {
     { id: 'dashboard', label: '仪表盘', icon: '📊', path: '/admin/dashboard' },
     { id: 'users', label: '用户管理', icon: '👥', path: '/admin/users' },
     { id: 'knowledge', label: '知识库管理', icon: '📚', path: '/admin/knowledge' },
-    { id: 'logs', label: '问答日志', icon: '�', path: '/admin/logs' },
+    { id: 'logs', label: '问答日志', icon: '📝', path: '/admin/logs' },
     { id: 'agent-runs', label: 'Agent执行记录', icon: '🔄', path: '/admin/agent-runs' },
+    { id: 'inspection', label: '知识巡检', icon: '🔍', path: '/admin/inspection' },
     { id: 'notices', label: '通知管理', icon: '📢', path: '/admin/notices' },
   ];
 

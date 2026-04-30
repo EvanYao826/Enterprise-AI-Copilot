@@ -62,6 +62,18 @@ export default function Login() {
 
   return (
     <div className="auth-container">
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle"></div>
+      <div className="particle-line"></div>
+      <div className="particle-line"></div>
+      <div className="particle-line"></div>
+      <div className="particle-line"></div>
       <div className="auth-card">
         <h1 className="auth-title">AI 知识系统</h1>
         <h2 className="auth-subtitle">登录</h2>

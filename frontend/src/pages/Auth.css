@@ -3,9 +3,105 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #e0f7fa 0%, #e8eaf6 50%, #f3e5f5 100%);
+  position: relative;
+  overflow: hidden;
   padding: 20px;
 }
+
+.auth-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 10% 20%, rgba(0, 188, 212, 0.2) 0%, transparent 40%),
+    radial-gradient(ellipse at 90% 80%, rgba(156, 39, 176, 0.15) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 138, 101, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  animation: bgShift 15s ease-in-out infinite alternate;
+}
+
+@keyframes bgShift {
+  0% { opacity: 0.8; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1.1); }
+}
+
+.auth-container::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  right: -50%;
+  bottom: -50%;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(0, 150, 136, 0.1) 2px, transparent 2px),
+    radial-gradient(circle at 80% 70%, rgba(233, 30, 99, 0.08) 2px, transparent 2px);
+  background-size: 80px 80px;
+  pointer-events: none;
+  animation: gridFloat 30s linear infinite;
+}
+
+@keyframes gridFloat {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(80px, 80px) rotate(5deg); }
+}
+
+@keyframes particleFloat {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+  25% { transform: translate(15px, -25px) scale(1.2); opacity: 1; }
+  50% { transform: translate(-10px, -40px) scale(0.9); opacity: 0.7; }
+  75% { transform: translate(-25px, -15px) scale(1.1); opacity: 0.9; }
+  100% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+}
+
+@keyframes particleGlow {
+  0%, 100% { box-shadow: 0 0 8px currentColor, 0 0 20px currentColor; }
+  50% { box-shadow: 0 0 15px currentColor, 0 0 35px currentColor; }
+}
+
+.auth-container .particle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: particleFloat 8s ease-in-out infinite, particleGlow 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.auth-container .particle:nth-child(1) { top: 12%; left: 8%; background: #00bcd4; color: #00bcd4; animation-delay: 0s, 0s; animation-duration: 8s, 2.5s; }
+.auth-container .particle:nth-child(2) { top: 20%; left: 88%; background: #9c27b0; color: #9c27b0; animation-delay: 1s, 0.5s; animation-duration: 10s, 3s; }
+.auth-container .particle:nth-child(3) { top: 75%; left: 12%; background: #ff7043; color: #ff7043; animation-delay: 2s, 1s; animation-duration: 9s, 2.8s; }
+.auth-container .particle:nth-child(4) { top: 85%; left: 85%; background: #4caf50; color: #4caf50; animation-delay: 0.5s, 1.5s; animation-duration: 11s, 3.2s; }
+.auth-container .particle:nth-child(5) { top: 50%; left: 3%; background: #2196f3; color: #2196f3; animation-delay: 3s, 0.8s; animation-duration: 7s, 2.6s; }
+.auth-container .particle:nth-child(6) { top: 8%; left: 55%; background: #e91e63; color: #e91e63; animation-delay: 1.5s, 1.2s; animation-duration: 12s, 2.9s; }
+.auth-container .particle:nth-child(7) { top: 65%; left: 92%; background: #ff9800; color: #ff9800; animation-delay: 2.5s, 0.3s; animation-duration: 8.5s, 3.1s; }
+.auth-container .particle:nth-child(8) { top: 40%; left: 50%; background: #00bcd4; color: #00bcd4; animation-delay: 0.8s, 1.8s; animation-duration: 10.5s, 2.7s; }
+
+@keyframes lineDrift {
+  0% { transform: translateX(-100%) rotate(var(--angle)); opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% { transform: translateX(100vw) rotate(var(--angle)); opacity: 0; }
+}
+
+.particle-line {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 150, 136, 0.6), rgba(233, 30, 99, 0.6), transparent);
+  transform-origin: left center;
+  pointer-events: none;
+  opacity: 0;
+  animation: lineDrift 12s linear infinite;
+}
+
+.particle-line:nth-child(9) { top: 25%; --angle: 25deg; animation-delay: 0s; }
+.particle-line:nth-child(10) { top: 55%; --angle: -15deg; animation-delay: 3s; }
+.particle-line:nth-child(11) { top: 70%; --angle: 35deg; animation-delay: 6s; }
+.particle-line:nth-child(12) { top: 40%; --angle: -30deg; animation-delay: 9s; }
 
 .auth-card {
   background: white;

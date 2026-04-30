@@ -12,6 +12,7 @@ import QaLogManagement from './pages/admin/QaLogManagement';
 import Dashboard from './pages/admin/Dashboard';
 import NoticeManagement from './pages/admin/NoticeManagement';
 import AgentRunManagement from './pages/admin/AgentRunManagement';
+import KnowledgeInspection from './pages/admin/KnowledgeInspection';
 
 const Layout = () => {
   const location = useLocation();
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="logs" element={<QaLogManagement />} />
           <Route path="notices" element={<NoticeManagement />} />
           <Route path="agent-runs" element={<AgentRunManagement />} />
+          <Route path="inspection" element={<KnowledgeInspection />} />
         </Route>
 
         {/* Default Routes */}
