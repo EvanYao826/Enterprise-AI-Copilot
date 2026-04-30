@@ -55,6 +55,8 @@ export default function AgentRunManagement() {
       let url = '/api/agent-run/list?pageNum=1&pageSize=10';
       if (filters.userId) url += `&userId=${filters.userId}`;
       if (filters.status) url += `&status=${filters.status}`;
+      if (filters.dateStart) url += `&startTime=${filters.dateStart}T00:00:00`;
+      if (filters.dateEnd) url += `&endTime=${filters.dateEnd}T23:59:59`;
       
       const token = localStorage.getItem('adminToken');
       console.log('Fetching URL:', url);
