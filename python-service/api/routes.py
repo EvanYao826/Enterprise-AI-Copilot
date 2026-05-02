@@ -5,6 +5,7 @@ from core.parser import DocumentParser
 from core.vector_store import VectorStoreManager
 from core.llm import LLMService
 from core.mysql_client import mysql_client
+from workflows import RouterAgent
 import os
 import re
 import logging
@@ -22,6 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# 初始化 RouterAgent
+router_agent = RouterAgent()
 
 # 问题类型判断器 - 判断问题是否应该返回文档引用
 def should_return_sources(question: str) -> bool:
@@ -124,7 +128,7 @@ def should_return_sources(question: str) -> bool:
 
     for keyword in life_chat_keywords:
         if keyword in lower_question:
-            # 特殊处理"是什么"的歧义
+            # 特殊处理"是什么地方"的歧义
             if keyword == "是什么地方":
                 # "是什么地方"应该匹配"北京是什么地方"，但不匹配"什么是一级封锁协议"
                 # 检查"是什么地方"是否出现在问题中
@@ -163,6 +167,7 @@ class ChatRequest(BaseModel):
     question: str
     context: str = "" # Optional, if context is passed directly (not used here)
     username: str = None # Optional, if username is provided
+    is_admin: bool = False # Optional, whether user is admin
 
 class SummaryRequest(BaseModel):
     question: str
@@ -240,11 +245,11 @@ async def parse_document(request: ParseRequest):
 @router.post("/ask")
 async def ask_question(request: ChatRequest):
     """
-    问答接口
+    问答接口 - 使用 RouterAgent 进行任务路由
     """
     start_time = time.time()
     try:
-        logger.info(f"Received question: {request.question}, username: {request.username}")
+        logger.info(f"Received question: {request.question}, username: {request.username}, is_admin: {request.is_admin}")
         
         # 处理身份相关问题
         lower_question = request.question.lower()
@@ -252,70 +257,24 @@ async def ask_question(request: ChatRequest):
         if any(keyword in lower_question for keyword in identity_keywords) and request.username:
             logger.info(f"Answering identity question for user: {request.username}")
             answer = f"你是 {request.username}，是本系统的注册用户。"
-            response = {"answer": answer, "sources": []}
+            response = {"answer": answer, "sources": [], "task_type": "chitchat"}
         else:
-            # 1. 判断问题类型：是否应该返回文档引用
-            should_return_sources_flag = should_return_sources(request.question)
-
-            # 2. 总是搜索向量数据库，但设置相似度阈值
-            # 相似度阈值设为0.75，平衡相关性和召回率
-            docs = vector_store.search(request.question, k=3, similarity_threshold=0.75)
-            logger.info(f"Found {len(docs)} documents from vector search (threshold: 0.75), should_return_sources: {should_return_sources_flag}")
-
-            sources = []
-
-            # 3. 只有应该返回文档引用时才处理sources
-            if should_return_sources_flag and docs:
-                seen_docs = set()
-                relevant_docs_count = 0
-
-                for doc in docs:
-                    # 不再进行严格的内容相关性检查
-                    # 因为向量相似度已经足够（阈值0.7）
-                    # 而且文档可能是英文或专业术语，与中文问题词汇不匹配
-                    relevant_docs_count += 1
-
-                    source = doc.metadata.get("source")
-                    doc_id = doc.metadata.get("doc_id")
-
-                    # 使用 source 或 doc_id 进行去重
-                    unique_key = str(doc_id) if doc_id else source
-                    if unique_key in seen_docs:
-                        continue
-                    seen_docs.add(unique_key)
-
-                    source_info = {
-                        "source": source,
-                        "doc_id": doc_id,
-                        "page": doc.metadata.get("page")
-                    }
-                    # 尝试从 source 中提取文件名
-                    if source_info["source"]:
-                        source_info["doc_name"] = os.path.basename(source_info["source"])
-                        # 如果是 URL，提取 URL 的文件名部分
-                        if source_info["source"].startswith(('http://', 'https://')):
-                            source_info["doc_name"] = source_info["source"].split('/')[-1]
-                            # 移除 URL 参数（如果有）
-                            if '?' in source_info["doc_name"]:
-                                 source_info["doc_name"] = source_info["doc_name"].split('?')[0]
-
-                    sources.append(source_info)
-
-                logger.info(f"Extracted {len(sources)} unique sources from {len(docs)} documents")
-            else:
-                if not should_return_sources_flag:
-                    logger.info(f"Question type does not require sources: {request.question}")
-                elif not docs:
-                    logger.info(f"No documents found for question: {request.question}")
-
-            # 2. 调用 LLM 生成回答（传入对话上下文）
-            # 注意：即使没有相关文档，也调用LLM，但传入空文档列表
-            answer = llm_service.get_answer(request.question, docs, request.context)
-            logger.info(f"Generated answer successfully")
-
-            response = {"answer": answer, "sources": sources}
+            # 使用 RouterAgent 进行任务路由
+            result = router_agent.route(
+                input_text=request.question,
+                context=request.context,
+                username=request.username,
+                is_admin=request.is_admin
+            )
+            
+            # 构建响应
+            response = {
+                "answer": result.get("answer", ""),
+                "sources": result.get("sources", []),
+                "task_type": result.get("task_type", "unknown")
+            }
         
-        logger.info(f"Response generated successfully")
+        logger.info(f"Response generated successfully, task_type: {response.get('task_type')}")
         
         process_time = time.time() - start_time
         logger.info(
@@ -355,13 +314,13 @@ async def ask_question(request: ChatRequest):
 @router.post("/ask/stream")
 async def ask_question_stream(request: ChatRequest):
     """
-    流式问答接口 (Server-Sent Events)
+    流式问答接口 (Server-Sent Events) - 使用 RouterAgent
     """
     start_time = time.time()
 
     async def event_generator():
         try:
-            logger.info(f"Streaming question: {request.question}, username: {request.username}")
+            logger.info(f"Streaming question: {request.question}, username: {request.username}, is_admin: {request.is_admin}")
 
             # 处理身份相关问题
             lower_question = request.question.lower()
@@ -372,54 +331,17 @@ async def ask_question_stream(request: ChatRequest):
                 # 流式返回身份回答
                 for char in answer:
                     yield f"data: {json.dumps({'type': 'token', 'content': char})}\n\n"
-                yield f"data: {json.dumps({'type': 'end', 'content': answer})}\n\n"
+                yield f"data: {json.dumps({'type': 'end', 'content': answer, 'task_type': 'chitchat'})}\n\n"
                 return
 
-            # 1. 总是搜索向量数据库，但设置相似度阈值
-            docs = vector_store.search(request.question, k=3, similarity_threshold=0.75)
-            logger.info(f"Found {len(docs)} documents for streaming (threshold: 0.75)")
-
-            sources = []
-
-            # 2. 处理文档引用（不再进行严格的内容相关性检查）
-            if docs:
-                seen_docs = set()
-
-                for doc in docs:
-                    # 不再进行严格的内容相关性检查
-                    # 因为向量相似度已经足够（阈值0.7）
-                    source = doc.metadata.get("source")
-                    doc_id = doc.metadata.get("doc_id")
-
-                    unique_key = str(doc_id) if doc_id else source
-                    if unique_key in seen_docs:
-                        continue
-                    seen_docs.add(unique_key)
-
-                    source_info = {
-                        "source": source,
-                        "doc_id": doc_id,
-                        "page": doc.metadata.get("page")
-                    }
-                    if source_info["source"]:
-                        source_info["doc_name"] = os.path.basename(source_info["source"])
-                        if source_info["source"].startswith(('http://', 'https://')):
-                            source_info["doc_name"] = source_info["source"].split('/')[-1]
-                            if '?' in source_info["doc_name"]:
-                                source_info["doc_name"] = source_info["doc_name"].split('?')[0]
-
-                    sources.append(source_info)
-
-                logger.info(f"Extracted {len(sources)} unique sources from {len(docs)} documents for streaming")
-            else:
-                logger.info(f"No documents found for streaming question: {request.question}")
-
-            # 发送来源信息（可能为空）
-            yield f"data: {json.dumps({'type': 'sources', 'content': sources})}\n\n"
-
-            # 2. 调用流式 LLM 生成回答
-            for chunk in llm_service.get_answer_stream(request.question, docs, request.context):
-                yield f"data: {chunk}\n\n"
+            # 使用 RouterAgent 进行流式任务路由
+            for event_data in router_agent.route_stream(
+                input_text=request.question,
+                context=request.context,
+                username=request.username,
+                is_admin=request.is_admin
+            ):
+                yield f"data: {event_data}\n\n"
 
             process_time = time.time() - start_time
             logger.info(

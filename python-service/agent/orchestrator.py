@@ -302,7 +302,7 @@ class Orchestrator:
         if answer is None:
             answer = "抱歉，我无法生成回答。"
 
-        return self.policies.format_response(answer, sources)
+        return self.policies.format_response(answer, sources, True, "knowledge_qa")
 
     def _build_error_response(self, state: AgentState) -> Dict[str, Any]:
         """构建错误响应"""

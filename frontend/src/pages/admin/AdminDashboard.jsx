@@ -23,13 +23,11 @@ export default function AdminDashboard() {
     }
     setAdminInfo(JSON.parse(info));
 
-    // Set active menu based on current path
     const path = location.pathname;
     if (path.includes('/dashboard')) setActiveMenu('dashboard');
     else if (path.includes('/users')) setActiveMenu('users');
     else if (path.includes('/knowledge')) setActiveMenu('knowledge');
     else if (path.includes('/logs')) setActiveMenu('logs');
-    else if (path.includes('/notices')) setActiveMenu('notices');
     else if (path.includes('/agent-runs')) setActiveMenu('agent-runs');
     else if (path.includes('/inspection')) setActiveMenu('inspection');
     else if (path.includes('/reports')) setActiveMenu('reports');
@@ -49,7 +47,6 @@ export default function AdminDashboard() {
     { id: 'agent-runs', label: 'Agent执行记录', icon: '🔄', path: '/admin/agent-runs' },
     { id: 'inspection', label: '知识巡检', icon: '🔍', path: '/admin/inspection' },
     { id: 'reports', label: '自动报表', icon: '📈', path: '/admin/reports' },
-    { id: 'notices', label: '通知管理', icon: '📢', path: '/admin/notices' },
   ];
 
   const handleMenuClick = (path) => {
@@ -87,7 +84,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="admin-main">
         <Outlet />
       </div>

@@ -313,3 +313,34 @@ class LLMService:
             return processed_question
         else:
             return question
+
+    def generate(self, prompt: str, temperature: float = 0.7, max_tokens: int = 150) -> str:
+        """
+        简单的文本生成方法（用于闲聊等场景）
+        """
+        import time
+        start_time = time.time()
+        
+        if not self.llm:
+            config.logger.info(f"LLM generate completed in {time.time() - start_time:.4f}s (no API key)")
+            return "我是AI助手，很高兴为您服务。"
+        
+        try:
+            # 使用简单的 prompt
+            simple_prompt = PromptTemplate.from_template("{input}")
+            chain = simple_prompt | self.llm | StrOutputParser()
+            
+            result = chain.invoke({"input": prompt})
+            
+            config.logger.info(f"LLM generate completed in {time.time() - start_time:.4f}s")
+            return result
+        except Exception as e:
+            config.logger.error(f"LLM generate Error: {e}")
+            return "抱歉，我暂时无法回答这个问题。"
+
+
+# 创建单例实例
+llm_service = LLMService()
+
+# 导出（保持兼容性）
+llm = llm_service

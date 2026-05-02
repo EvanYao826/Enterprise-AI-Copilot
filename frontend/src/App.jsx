@@ -10,14 +10,12 @@ import UserManagement from './pages/admin/UserManagement';
 import KnowledgeManagement from './pages/admin/KnowledgeManagement';
 import QaLogManagement from './pages/admin/QaLogManagement';
 import Dashboard from './pages/admin/Dashboard';
-import NoticeManagement from './pages/admin/NoticeManagement';
 import AgentRunManagement from './pages/admin/AgentRunManagement';
 import KnowledgeInspection from './pages/admin/KnowledgeInspection';
 import Reports from './pages/admin/Reports';
 
 const Layout = () => {
   const location = useLocation();
-  // Don't show header on login/register pages or admin pages
   const showHeader = !['/login', '/register'].includes(location.pathname) && !location.pathname.startsWith('/admin');
 
   return (
@@ -34,7 +32,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* User Routes */}
         <Route element={<Layout />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -42,7 +39,6 @@ export default function App() {
           <Route path="/knowledge" element={<Knowledge />} />
         </Route>
 
-        {/* Admin Routes */}
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />}>
           <Route index element={<Navigate to="dashboard" replace />} />
@@ -50,13 +46,11 @@ export default function App() {
           <Route path="users" element={<UserManagement />} />
           <Route path="knowledge" element={<KnowledgeManagement />} />
           <Route path="logs" element={<QaLogManagement />} />
-          <Route path="notices" element={<NoticeManagement />} />
           <Route path="agent-runs" element={<AgentRunManagement />} />
           <Route path="inspection" element={<KnowledgeInspection />} />
           <Route path="reports" element={<Reports />} />
         </Route>
 
-        {/* Default Routes */}
         <Route path="/" element={<Navigate to="/chat" replace />} />
       </Routes>
     </BrowserRouter>

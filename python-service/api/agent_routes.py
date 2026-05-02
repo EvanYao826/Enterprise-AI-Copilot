@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from workflows.knowledge_qa_agent import KnowledgeQAAgent
+from workflows import RouterAgent
 from agent.state import AgentState
 from agent.events import event_bus, Event
 from typing import Optional, List, Dict, Any
+from collections import defaultdict
 import time
 import logging
 import json
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-agent = KnowledgeQAAgent()
+router_agent = RouterAgent()
 
 
 class AgentRunRequest(BaseModel):
@@ -26,6 +27,7 @@ class AgentRunRequest(BaseModel):
     run_id: Optional[str] = None
     trace_id: Optional[str] = None
     stream: bool = False
+    is_admin: bool = False
 
 
 class AgentRunResponse(BaseModel):
@@ -56,6 +58,13 @@ class ToolCallEvent(BaseModel):
 
 
 stored_states: Dict[str, AgentState] = {}
+
+task_stats = defaultdict(lambda: {
+    "total": 0,
+    "success": 0,
+    "failed": 0,
+    "total_duration_ms": 0
+})
 
 
 def on_run_completed(event: Event):
@@ -90,13 +99,14 @@ async def run_agent(request: AgentRunRequest):
     start_time = time.time()
 
     try:
-        logger.info(f"[Agent API] Received run request: {request.input[:50]}...")
+        logger.info(f"[Agent API] Received run request: {request.input[:50]}..., is_admin={request.is_admin}")
 
-        result = agent.ask(
-            question=request.input,
+        result = router_agent.route(
+            input_text=request.input,
             conversation_id=request.conversation_id,
             user_id=request.user_id,
             context=request.context or "",
+            is_admin=request.is_admin,
             goal=request.goal,
             run_id=request.run_id,
             trace_id=request.trace_id
@@ -104,6 +114,13 @@ async def run_agent(request: AgentRunRequest):
 
         run_id = request.run_id or str(uuid.uuid4())
         trace_id = request.trace_id or str(uuid.uuid4())
+        task_type = result.get("task_type", "unknown")
+
+        task_stats[task_type]["total"] += 1
+        task_stats[task_type]["success"] += 1
+
+        duration_ms = (time.time() - start_time) * 1000
+        task_stats[task_type]["total_duration_ms"] += duration_ms
 
         response = {
             "run_id": run_id,
@@ -111,6 +128,7 @@ async def run_agent(request: AgentRunRequest):
             "status": "completed",
             "answer": result.get("answer", ""),
             "sources": result.get("sources", []),
+            "task_type": task_type,
             "steps": [],
             "tool_calls": [],
             "intermediate_conclusions": []
@@ -123,7 +141,8 @@ async def run_agent(request: AgentRunRequest):
                 "path": "/api/agent/run",
                 "status_code": 200,
                 "process_time": process_time,
-                "run_id": run_id
+                "run_id": run_id,
+                "task_type": task_type
             })
         )
 
@@ -131,6 +150,10 @@ async def run_agent(request: AgentRunRequest):
 
     except Exception as e:
         process_time = time.time() - start_time
+        task_type = "unknown"
+        task_stats[task_type]["total"] += 1
+        task_stats[task_type]["failed"] += 1
+
         logger.error(f"[Agent API] Error running agent: {str(e)}")
         logger.info(
             json.dumps({
@@ -155,23 +178,41 @@ async def run_agent_stream(request: AgentRunRequest):
         SSE事件流
     """
     async def event_generator():
-        try:
-            logger.info(f"[Agent API] Stream request: {request.input[:50]}...")
+        start_time = time.time()
+        task_type = "unknown"
 
-            for event_data in agent.ask_stream(
-                question=request.input,
+        try:
+            logger.info(f"[Agent API] Stream request: {request.input[:50]}..., is_admin={request.is_admin}")
+
+            for event_data in router_agent.route_stream(
+                input_text=request.input,
                 conversation_id=request.conversation_id,
                 user_id=request.user_id,
                 context=request.context or "",
+                is_admin=request.is_admin,
                 goal=request.goal,
                 run_id=request.run_id,
                 trace_id=request.trace_id
             ):
+                parsed = json.loads(event_data.strip().replace("data: ", "").replace("\n\n", ""))
+                if parsed.get("type") == "routed":
+                    task_type = parsed.get("task_type", "unknown")
+
                 yield f"data: {event_data}\n\n"
+
+            duration_ms = (time.time() - start_time) * 1000
+            task_stats[task_type]["total"] += 1
+            task_stats[task_type]["success"] += 1
+            task_stats[task_type]["total_duration_ms"] += duration_ms
 
             yield f"data: {json.dumps({'type': 'complete'})}\n\n"
 
         except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            task_stats[task_type]["total"] += 1
+            task_stats[task_type]["failed"] += 1
+            task_stats[task_type]["total_duration_ms"] += duration_ms
+
             logger.error(f"[Agent API] Stream error: {str(e)}")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
@@ -308,6 +349,50 @@ async def list_tools():
             tool_registry.get_tool_info(name)
             for name in tools.keys()
         ]
+    }
+
+
+@router.get("/agent/stats")
+async def get_agent_stats():
+    """
+    获取Agent任务统计信息
+
+    Returns:
+        任务类型统计
+    """
+    stats = []
+    total_all = 0
+    success_all = 0
+    failed_all = 0
+
+    for task_type, data in task_stats.items():
+        total = data["total"]
+        success = data["success"]
+        failed = data["failed"]
+        avg_duration = data["total_duration_ms"] / total if total > 0 else 0
+
+        total_all += total
+        success_all += success
+        failed_all += failed
+
+        stats.append({
+            "task_type": task_type,
+            "total": total,
+            "success": success,
+            "failed": failed,
+            "success_rate": round(success / total * 100, 2) if total > 0 else 0,
+            "avg_duration_ms": round(avg_duration, 2)
+        })
+
+    return {
+        "task_stats": stats,
+        "summary": {
+            "total": total_all,
+            "success": success_all,
+            "failed": failed_all,
+            "overall_success_rate": round(success_all / total_all * 100, 2) if total_all > 0 else 0
+        },
+        "keyword_stats": router_agent.get_task_stats()
     }
 
 

@@ -8,6 +8,7 @@ from pymilvus import connections, utility
 from core.reranker import create_reranker, BaseReranker
 from core.config import config
 
+
 class VectorStoreManager:
     def __init__(self, persist_directory=None, use_milvus=None):
         """
@@ -430,3 +431,10 @@ class VectorStoreManager:
         except Exception as e:
             config.logger.error(f"Migration failed: {e}")
             return False
+
+
+# 创建单例实例
+vector_store_manager = VectorStoreManager()
+
+# 导出（保持兼容性，同时保留完整管理器）
+vector_store = vector_store_manager

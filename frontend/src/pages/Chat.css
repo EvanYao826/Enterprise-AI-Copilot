@@ -1212,3 +1212,33 @@
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.3);
 }
+
+/* ========================================
+   Task Type Badge Styles
+   ======================================== */
+
+.message-task-type {
+  margin-bottom: 10px;
+}
+
+.task-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--transition-normal);
+}
+
+.task-type-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.welcome-hint {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-top: 8px;
+}

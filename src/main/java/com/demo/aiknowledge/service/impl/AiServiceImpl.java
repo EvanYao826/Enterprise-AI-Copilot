@@ -45,7 +45,6 @@ public class AiServiceImpl implements AiService {
 
     @Value("${ai.service.url}")
     private String aiServiceUrl;
-
     
     /**
      * 判断问题是否是一般性问题，不需要参考来源
@@ -185,32 +184,37 @@ public class AiServiceImpl implements AiService {
             if (cachedResponse != null) {
                 // 如果缓存的是错误响应，不使用缓存，重新请求
                 if (isErrorResponse(cachedResponse.getAnswer())) {
-                    log.info("Cache hit but contains error response, refreshing...");
+                    log.info("Cache hit but contains error response, refreshing");
                 } else {
                     log.info("Cache hit for question: {}", question);
                     return cachedResponse;
                 }
             }
 
-            // 2. 构建请求
+            // 2. 构建请求（使用 /ask 接口，它内部已使用 RouterAgent）
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("question", question);
             requestBody.put("context", context);
-
-            // 3. 获取用户信息（如果是身份相关问题）
-            if (isGeneralQuestion(question) && userId != null) {
+            
+            // 判断用户是否为管理员（userId == 1L 为管理员）
+            boolean isAdmin = (userId != null && userId == 1L);
+            String username = null;
+            if (userId != null) {
                 User user = userService.getById(userId);
                 if (user != null) {
-                    requestBody.put("username", user.getUsername());
-                    log.info("Added username to request: {}", user.getUsername());
+                    username = user.getUsername();
+                    requestBody.put("username", username);
+                    log.info("Added username to request: {}", username);
                 }
             }
+            requestBody.put("is_admin", isAdmin);
+            log.info("User is admin: {}", isAdmin);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-            // 关键点：打印即将调用的完整 URL，确认协议和端口是否正确
+            // 使用原来的 /ask 接口（它内部已使用 RouterAgent）
             String url = aiServiceUrl + "/ask";
             log.info(">>> [AI Service] 正在调用 Python 服务: {}", url);
             log.info(">>> [AI Service] 请求体: {}", requestBody);
@@ -249,8 +253,15 @@ public class AiServiceImpl implements AiService {
                 String answer = (String) body.get("answer");
                 aiResponse.setAnswer(answer);
 
-                // 检查问题是否需要参考来源
-                if (!isGeneralQuestion(question) && body.containsKey("sources")) {
+                // 获取任务类型
+                if (body.containsKey("task_type")) {
+                    String taskType = (String) body.get("task_type");
+                    aiResponse.setTaskType(taskType);
+                    log.info("Task type detected: {}", taskType);
+                }
+
+                // 检查是否有参考来源
+                if (body.containsKey("sources")) {
                     List<Map<String, Object>> sources = (List<Map<String, Object>>) body.get("sources");
                     if (sources != null && !sources.isEmpty()) {
                         for (Map<String, Object> source : sources) {
@@ -260,9 +271,6 @@ public class AiServiceImpl implements AiService {
                         }
                         aiResponse.setSources(sources);
                     }
-                } else {
-                    // 对于一般性问题，不设置参考来源
-                    aiResponse.setSources(null);
                 }
 
                 // 只缓存非错误响应
@@ -276,7 +284,7 @@ public class AiServiceImpl implements AiService {
 
                 return aiResponse;
             } else {
-                // 处理非 2xx 状态码 (如 404, 500)
+                // 处理非 2xx 状态码（如 404, 500）
                 log.error(">>> [AI Service] Python 服务返回错误状态码: {}, 响应体：{}", response.getStatusCode(), response.getBody());
                 // 返回友好的错误响应，不暴露技术细节
                 aiResponse.setAnswer(getFriendlyErrorMessage("status"));

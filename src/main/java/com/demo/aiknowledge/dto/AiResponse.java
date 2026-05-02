@@ -8,4 +8,5 @@ import java.util.Map;
 public class AiResponse {
     private String answer;
     private List<Map<String, Object>> sources;
+    private String taskType; // 任务类型
 }

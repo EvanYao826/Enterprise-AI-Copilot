@@ -106,6 +106,7 @@ public class ChatServiceImpl implements ChatService {
         AiResponse aiResponse = aiService.ask(content, conversationContext, userId);
         String answer = aiResponse.getAnswer();
         String sourcesJson = null;
+        String taskType = aiResponse.getTaskType();
 
         if (aiResponse.getSources() != null && !aiResponse.getSources().isEmpty()) {
             try {
@@ -128,6 +129,7 @@ public class ChatServiceImpl implements ChatService {
         aiMsg.setRole("assistant");
         aiMsg.setContent(answer);
         aiMsg.setSources(sourcesJson);
+        aiMsg.setTaskType(taskType); // 设置任务类型
         aiMsg.setCreateTime(LocalDateTime.now());
         messageMapper.insert(aiMsg);
 

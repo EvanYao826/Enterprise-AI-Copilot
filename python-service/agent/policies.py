@@ -118,17 +118,57 @@ class ResponsePolicy:
         self.max_sources = 5
 
     def format_response(self, answer: str, sources: List[Dict[str, Any]],
-                        include_sources: bool = True) -> Dict[str, Any]:
+                        include_sources: bool = True, task_type: str = "knowledge_qa") -> Dict[str, Any]:
         """格式化响应"""
         truncated_answer = answer[:self.max_answer_length] if len(answer) > self.max_answer_length else answer
 
-        formatted_sources = sources[:self.max_sources] if sources else []
+        formatted_sources = self._deduplicate_sources(sources)[:self.max_sources] if sources else []
 
         return {
             "answer": truncated_answer,
             "sources": formatted_sources if include_sources else [],
-            "has_sources": len(formatted_sources) > 0 if include_sources else False
+            "has_sources": len(formatted_sources) > 0 if include_sources else False,
+            "task_type": task_type
         }
+
+    def _deduplicate_sources(self, sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """对引用源进行去重"""
+        if not sources:
+            return []
+
+        seen_ids = set()
+        unique_sources = []
+
+        for source in sources:
+            source_id = None
+            # 尝试多种可能的ID字段
+            if "docId" in source:
+                source_id = source["docId"]
+            elif "doc_id" in source:
+                source_id = source["doc_id"]
+            elif "id" in source:
+                source_id = source["id"]
+            elif "docName" in source:
+                source_id = source["docName"]
+            elif "doc_name" in source:
+                source_id = source["doc_name"]
+            elif "name" in source:
+                source_id = source["name"]
+            elif "doc" in source:
+                source_id = source["doc"]
+            # 如果有content，也可以作为去重依据
+            elif "content" in source:
+                source_id = str(hash(source["content"]))
+
+            if source_id:
+                if source_id not in seen_ids:
+                    seen_ids.add(source_id)
+                    unique_sources.append(source)
+            else:
+                # 如果没有ID，直接保留
+                unique_sources.append(source)
+
+        return unique_sources
 
 
 class AgentPolicies:
@@ -162,9 +202,9 @@ class AgentPolicies:
         return self.retry_policy.get_delay(attempt)
 
     def format_response(self, answer: str, sources: List[Dict[str, Any]],
-                       include_sources: bool = True) -> Dict[str, Any]:
+                       include_sources: bool = True, task_type: str = "knowledge_qa") -> Dict[str, Any]:
         """格式化响应"""
-        return self.response_policy.format_response(answer, sources, include_sources)
+        return self.response_policy.format_response(answer, sources, include_sources, task_type)
 
 
 policies = AgentPolicies()

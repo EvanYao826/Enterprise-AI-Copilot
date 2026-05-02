@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { chatAPI, knowledgeAPI } from '../api';
 import './Chat.css';
 
+const TASK_TYPE_INFO = {
+  chitchat: { icon: '💬', label: '闲聊', color: '#10b981' },
+  knowledge_qa: { icon: '📚', label: '知识问答', color: '#3b82f6' },
+  admin_copilot: { icon: '⚙️', label: '管理助手', color: '#8b5cf6' },
+  knowledge_inspection: { icon: '🔍', label: '知识巡检', color: '#f59e0b' },
+  unknown: { icon: '🤖', label: 'AI助手', color: '#6b7280' }
+};
+
 export default function Chat() {
   const navigate = useNavigate();
   const userId = parseInt(localStorage.getItem('userId'));
@@ -12,6 +20,7 @@ export default function Chat() {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [processingStep, setProcessingStep] = useState(null);
+  const [currentTaskType, setCurrentTaskType] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -58,10 +67,10 @@ export default function Chat() {
 
   const getFileInfo = (fullName) => {
     if (!fullName) return { icon: '📄', name: '相关文档' };
-    
+
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_/i;
     const cleanName = fullName.replace(uuidRegex, '');
-    
+
     const ext = cleanName.split('.').pop().toLowerCase();
     let icon = '📄';
     switch (ext) {
@@ -78,7 +87,7 @@ export default function Chat() {
       case 'rar': icon = '📦'; break;
       default: icon = '📄';
     }
-    
+
     return { icon, name: cleanName };
   };
 
@@ -114,6 +123,19 @@ export default function Chat() {
       console.error("Parse sources failed", e);
       return null;
     }
+  };
+
+  const getTaskTypeBadge = (taskType) => {
+    const info = TASK_TYPE_INFO[taskType] || TASK_TYPE_INFO.unknown;
+    return (
+      <span
+        className="task-type-badge"
+        style={{ backgroundColor: info.color + '20', color: info.color }}
+        title={`任务类型: ${info.label}`}
+      >
+        {info.icon} {info.label}
+      </span>
+    );
   };
 
   useEffect(() => {
@@ -178,7 +200,7 @@ export default function Chat() {
 
   const handleDeleteConfirm = async () => {
     if (!deleteConversationId) return;
-    
+
     try {
       await chatAPI.deleteConversation(deleteConversationId);
       setConversations(conversations.filter(c => c.id !== deleteConversationId));
@@ -212,7 +234,6 @@ export default function Chat() {
     try {
       const response = await chatAPI.getMessages(conversationId);
       const messages = response.data || [];
-      // 确保每条消息都有 feedbackType 字段，防止后端返回的数据中缺少该字段
       const messagesWithFeedback = messages.map(msg => ({
         ...msg,
         feedbackType: msg.feedbackType || msg.feedback || null
@@ -267,6 +288,7 @@ export default function Chat() {
       content: '',
       isStreaming: true,
       processingStep: null,
+      taskType: null,
       createTime: new Date().toISOString()
     };
 
@@ -278,6 +300,7 @@ export default function Chat() {
     setUploadedImageId(null);
     setLoading(true);
     setProcessingStep('understanding');
+    setCurrentTaskType(null);
 
     const controller = new AbortController();
     setAbortController(controller);
@@ -302,13 +325,12 @@ export default function Chat() {
       }
 
       setProcessingStep('retrieving');
-      
+
       setTimeout(() => {
         setProcessingStep('generating');
       }, 300);
 
       setTimeout(() => {
-        // 使用后端返回的真实消息ID，确保反馈功能正常工作
         const aiMessage = {
           id: response.data.id || thinkingMessageId,
           conversationId: currentConversation.id,
@@ -316,6 +338,7 @@ export default function Chat() {
           content: response.data.content,
           sources: response.data.sources,
           feedbackType: response.data.feedbackType || null,
+          taskType: response.data.taskType || null,
           createTime: response.data.createTime || new Date().toISOString()
         };
 
@@ -383,13 +406,13 @@ export default function Chat() {
   const handleFeedback = async (messageId, type) => {
     try {
       const response = await chatAPI.submitFeedback(messageId, type);
-      
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
+
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId
           ? { ...msg, feedbackType: type }
           : msg
       ));
-      
+
       console.log(`Feedback ${type} recorded for message ${messageId}`);
     } catch (err) {
       console.error('提交反馈失败:', err);
@@ -491,7 +514,7 @@ export default function Chat() {
                   {conv.title || '新对话'}
                 </span>
               )}
-              
+
               <button
                 className="menu-btn"
                 onClick={(e) => handleMenuClick(conv.id, e)}
@@ -538,6 +561,7 @@ export default function Chat() {
                 <div className="welcome-screen">
                   <div className="welcome-avatar">🤖</div>
                   <h1>今天有什么可以帮到你？</h1>
+                  <p className="welcome-hint">我可以帮你回答知识问题、进行知识巡检、管理助手等</p>
                 </div>
               ) : (
                 messages.map((msg, index) => (
@@ -559,12 +583,17 @@ export default function Chat() {
                           </div>
                         ) : (
                           <>
+                            {msg.role === 'assistant' && msg.taskType && (
+                              <div className="message-task-type">
+                                {getTaskTypeBadge(msg.taskType)}
+                              </div>
+                            )}
                             {msg.content}
                             {msg.imageUrl && (
                               <div className="message-image">
-                                <img 
-                                  src={msg.imageUrl} 
-                                  alt="用户上传的图片" 
+                                <img
+                                  src={msg.imageUrl}
+                                  alt="用户上传的图片"
                                   onClick={() => handleImageClick(msg.imageUrl)}
                                 />
                               </div>
@@ -575,14 +604,14 @@ export default function Chat() {
                       </div>
                       {msg.role === 'assistant' && !msg.isStreaming && !msg.processingStep && (
                         <div className="message-feedback">
-                          <button 
+                          <button
                             className={`feedback-btn like ${msg.feedbackType === 'like' ? 'active' : ''}`}
                             onClick={() => handleFeedback(msg.id, 'like')}
                             title="点赞"
                           >
                             👍
                           </button>
-                          <button 
+                          <button
                             className={`feedback-btn dislike ${msg.feedbackType === 'dislike' ? 'active' : ''}`}
                             onClick={() => handleFeedback(msg.id, 'dislike')}
                             title="点踩"
@@ -606,8 +635,8 @@ export default function Chat() {
                       <span className="image-name">{uploadedImage.name}</span>
                       <span className="image-size">{Math.round(uploadedImage.size / 1024)}KB</span>
                     </div>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="remove-image-btn"
                       onClick={handleRemoveImage}
                       title="移除图片"
@@ -616,7 +645,7 @@ export default function Chat() {
                     </button>
                   </div>
                 )}
-                
+
                 <form className="chat-input-area" onSubmit={handleSendMessage}>
                   <textarea
                     value={inputMessage}
@@ -638,8 +667,8 @@ export default function Chat() {
                     style={{ display: 'none' }}
                   />
                   <div className="input-buttons">
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="upload-btn"
                       onClick={handleImageUploadClick}
                       disabled={uploadingImage || uploadedImage}
@@ -648,9 +677,9 @@ export default function Chat() {
                       📷
                     </button>
                     {loading && (
-                      <button 
-                        type="button" 
-                        className="stop-btn" 
+                      <button
+                        type="button"
+                        className="stop-btn"
                         onClick={handleStopGeneration}
                         title="停止生成"
                       >

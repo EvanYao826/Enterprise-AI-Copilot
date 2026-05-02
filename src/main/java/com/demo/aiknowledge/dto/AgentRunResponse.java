@@ -28,4 +28,8 @@ public class AgentRunResponse {
     private Long elapsedTime;
     private Integer maxSteps;
     private Integer timeoutSeconds;
+    private String taskType;
+    private String answer;
+    private List<SourceDTO> sources;
+    private Boolean hasSources;
 }
