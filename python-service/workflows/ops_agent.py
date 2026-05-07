@@ -363,26 +363,53 @@ class OpsAgent:
         hot_query = f"""
             SELECT question, COUNT(*) as count
             FROM qa_log
-            WHERE create_time >= DATE_SUB(NOW(), INTERVAL {days} DAY)
+            WHERE DATE(create_time) >= DATE(DATE_SUB(CURDATE(), INTERVAL {days} DAY))
             GROUP BY question
             ORDER BY count DESC
             LIMIT 15
         """
         hot_questions = mysql_client.fetch_all(hot_query) or []
 
-        answer = f"""🔥 热门问题{'周报' if period == 'week' else '日报'}
-        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
-📊 统计概览：
-- 统计周期：最近{days}天
-- 问题总数：{sum(q.get('count', 0) for q in hot_questions)}
-- 独立问题数：{len(hot_questions)}
+        total_count = sum(q.get('count', 0) for q in hot_questions)
+        unique_count = len(hot_questions)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        report_type = "周报" if period == "week" else "日报"
+        
+        answer = f"""
+📊 热门问题{report_type}
 
-🏆 TOP 10 热门问题：
-        """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【统计概览】
+
+  📅 统计周期：最近 {days} 天
+  📈 问题总数：{total_count} 次
+  🎯 独立问题数：{unique_count} 个
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【TOP 10 热门问题排行】
+
+"""
         for i, q in enumerate(hot_questions[:10], 1):
-            answer += f"\n{i}. {q.get('question', '')} ({q.get('count', 0)}次)"
+            question = q.get('question', '')
+            count = q.get('count', 0)
+            bar_length = min(count * 3, 30)
+            bar = '█' * bar_length
+            answer += f"  {i}. {question}\n     {' ' * 4}{bar} {count}次\n\n"
+
+        if len(hot_questions) > 10:
+            remaining = hot_questions[10:]
+            answer += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【其他热门问题】
+
+"""
+            for q in remaining:
+                answer += f"  • {q.get('question', '')} ({q.get('count', 0)}次)\n"
+
+        answer += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
         return {
             "success": True,
@@ -390,8 +417,8 @@ class OpsAgent:
             "data": {
                 "hot_questions": hot_questions,
                 "period": period,
-                "total_count": sum(q.get('count', 0) for q in hot_questions),
-                "unique_count": len(hot_questions)
+                "total_count": total_count,
+                "unique_count": unique_count
             },
             "task_type": "ops_analysis"
         }
@@ -428,22 +455,43 @@ class OpsAgent:
         total_docs = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_doc") or {}
         total_chunks = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_chunk") or {}
 
-        answer = f"""📈 知识库增长趋势（最近{days}天）
-        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
-📚 当前知识库规模：
-- 文档总数：{total_docs.get('count', 0)}
-- 知识片段：{total_chunks.get('count', 0)}
+        period_label = "近7天" if period == "week" else "近30天"
+        total_doc_count = total_docs.get('count', 0)
+        total_chunk_count = total_chunks.get('count', 0)
+        period_docs = sum(d.get('doc_count', 0) for d in growth_data)
+        period_chunks = sum(c.get('chunk_count', 0) for c in chunk_data)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        answer = f"""
+📈 知识库增长趋势
 
-📅 每日新增文档：
-        """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【知识库规模概览】
+
+  📚 文档总数：{total_doc_count} 篇
+  📄 知识片段：{total_chunk_count} 个
+  📅 统计周期：{period_label}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【期间新增统计】
+
+  � 新增文档：{period_docs} 篇
+  🔖 新增片段：{period_chunks} 个
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【每日增长趋势】
+
+"""
         for day in growth_data:
-            answer += f"\n{day.get('log_date', '')}: {day.get('doc_count', 0)} 篇"
+            date = day.get('log_date', '')
+            count = day.get('doc_count', 0)
+            bar_length = min(count * 5, 40)
+            bar = '█' * bar_length
+            answer += f"  {date} │ {bar} {count}篇\n"
 
-        answer += f"\n\n📊 每日新增知识片段："
-        for day in chunk_data[:7]:
-            answer += f"\n{day.get('log_date', '')}: {day.get('chunk_count', 0)} 个"
+        answer += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
         return {
             "success": True,
@@ -451,8 +499,10 @@ class OpsAgent:
             "data": {
                 "growth_data": growth_data,
                 "chunk_data": chunk_data,
-                "total_docs": total_docs.get('count', 0),
-                "total_chunks": total_chunks.get('count', 0),
+                "total_docs": total_doc_count,
+                "total_chunks": total_chunk_count,
+                "period_docs": period_docs,
+                "period_chunks": period_chunks,
                 "period": period
             },
             "task_type": "ops_analysis"
@@ -482,22 +532,36 @@ class OpsAgent:
         total_runs = total_success + total_failed
         overall_rate = (total_success / total_runs * 100) if total_runs > 0 else 0
 
-        answer = f"""✅ Agent成功率分析（最近{days}天）
-        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
-📊 总体统计：
-- 运行总次数：{total_runs}
-- 成功次数：{total_success}
-- 失败次数：{total_failed}
-- 成功率：{overall_rate:.1f}%
+        period_label = "近7天" if period == "week" else "近30天"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
+        answer = f"""
+✅ Agent成功率分析
 
-📅 每日成功率：
-        """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【总体统计】
+
+  📅 统计周期：{period_label}
+  🔄 运行总次数：{total_runs} 次
+  ✅ 成功次数：{total_success} 次
+  ❌ 失败次数：{total_failed} 次
+  📊 总体成功率：{overall_rate:.1f}%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【每日成功率趋势】
+
+"""
         for day in success_data:
+            date = day.get('log_date', '')
             day_total = day.get('total_count', 0)
-            day_rate = (day.get('success_count', 0) / day_total * 100) if day_total > 0 else 0
-            answer += f"\n{day.get('log_date', '')}: {day_rate:.1f}% ({day.get('success_count', 0)}/{day_total})"
+            day_success = day.get('success_count', 0)
+            day_rate = (day_success / day_total * 100) if day_total > 0 else 0
+            success_bar_length = min(int(day_rate), 50)
+            success_bar = '█' * success_bar_length
+            answer += f"  {date}\n     成功率: {day_rate:.1f}% ({success_bar})\n     成功/总数: {day_success}/{day_total}\n\n"
+
+        answer += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
         return {
             "success": True,
@@ -531,21 +595,38 @@ class OpsAgent:
         failure_data = mysql_client.fetch_all(failure_query) or []
 
         total_failures = sum(f.get('failure_count', 0) for f in failure_data)
+        failed_tool_count = len(failure_data)
 
-        answer = f"""🔧 工具调用失败排行
-        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
-📊 统计概览：
-- 失败工具种类：{len(failure_data)}
-- 总失败次数：{total_failures}
+        answer = f"""
+🔧 工具调用失败排行
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-❌ 失败排行：
-        """
+【统计概览】
+
+  🔨 失败工具种类：{failed_tool_count} 个
+  ❌ 总失败次数：{total_failures} 次
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【失败排行 TOP 10】
+
+"""
+        max_count = max([f.get('failure_count', 1) for f in failure_data], default=1)
         for i, tool in enumerate(failure_data, 1):
-            answer += f"\n{i}. {tool.get('tool_name', '')}: {tool.get('failure_count', 0)} 次失败"
+            tool_name = tool.get('tool_name', '')
+            count = tool.get('failure_count', 0)
+            bar_length = min(int(count / max_count * 30), 30)
+            bar = '█' * bar_length
+            answer += f"  {i}. {tool_name}\n     {' ' * 4}{bar} {count}次失败\n\n"
 
-        answer += f"\n\n💡 建议：关注失败次数较多的工具，检查其配置和依赖服务是否正常。"
+        answer += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 建议：关注失败次数较多的工具，检查其配置和依赖服务是否正常。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
 
         return {
             "success": True,
@@ -553,7 +634,7 @@ class OpsAgent:
             "data": {
                 "failure_data": failure_data,
                 "total_failures": total_failures,
-                "failed_tool_count": len(failure_data)
+                "failed_tool_count": failed_tool_count
             },
             "task_type": "ops_analysis"
         }
