@@ -102,5 +102,71 @@ class MySQLClient:
             logger.error(f"Error getting chunk count: {e}")
             return 0
 
+    def fetch_one(self, sql: str, params: tuple = None) -> Dict[str, Any]:
+        """执行查询并返回单行结果"""
+        if not self.connection or not self.connection.is_connected():
+            self.connect()
+        
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            
+            if params:
+                cursor.execute(sql, params)
+            else:
+                cursor.execute(sql)
+            
+            result = cursor.fetchone()
+            cursor.close()
+            return result
+        
+        except Error as e:
+            logger.error(f"Error fetching one: {e}")
+            return None
+
+    def fetch_all(self, sql: str, params: tuple = None) -> List[Dict[str, Any]]:
+        """执行查询并返回所有结果"""
+        if not self.connection or not self.connection.is_connected():
+            self.connect()
+        
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            
+            if params:
+                cursor.execute(sql, params)
+            else:
+                cursor.execute(sql)
+            
+            result = cursor.fetchall()
+            cursor.close()
+            return result
+        
+        except Error as e:
+            logger.error(f"Error fetching all: {e}")
+            return []
+
+    def execute(self, sql: str, params: tuple = None) -> int:
+        """执行SQL语句（INSERT/UPDATE/DELETE）"""
+        if not self.connection or not self.connection.is_connected():
+            self.connect()
+        
+        try:
+            cursor = self.connection.cursor()
+            
+            if params:
+                cursor.execute(sql, params)
+            else:
+                cursor.execute(sql)
+            
+            self.connection.commit()
+            affected_rows = cursor.rowcount
+            cursor.close()
+            return affected_rows
+        
+        except Error as e:
+            logger.error(f"Error executing SQL: {e}")
+            if self.connection:
+                self.connection.rollback()
+            return 0
+
 # 创建全局实例
 mysql_client = MySQLClient()

@@ -19,6 +19,10 @@ class AdminCopilotAgent:
             "unanswered_analysis": "未命中分析",
             "user_activity": "用户活跃度分析",
             "full_ops_report": "完整运营报告（P4-3）",
+            "hot_questions": "热门问题日报/周报",
+            "knowledge_growth": "知识库增长趋势",
+            "agent_success_rate": "Agent成功率分析",
+            "tool_call_failures": "工具调用失败排行",
         }
 
     def handle(self, question: str, conversation_id: Optional[str] = None,
@@ -96,6 +100,14 @@ class AdminCopilotAgent:
             return "stats"
         if any(kw in lower_question for kw in ["知识", "文档", "巡检", "检查", "质量"]):
             return "knowledge_inspection"
+        if any(kw in lower_question for kw in ["热门问题", "问题排行", "top问题", "常见问题"]):
+            return "hot_questions"
+        if any(kw in lower_question for kw in ["知识库增长", "文档增长", "增长趋势", "新增文档"]):
+            return "knowledge_growth"
+        if any(kw in lower_question for kw in ["成功率", "失败率", "agent成功", "运行成功"]):
+            return "agent_success_rate"
+        if any(kw in lower_question for kw in ["工具调用", "工具失败", "工具错误", "工具排行"]):
+            return "tool_call_failures"
 
         return "stats"
 
@@ -112,6 +124,17 @@ class AdminCopilotAgent:
                 return self._analyze_user_activity()
             elif operation == "full_ops_report":
                 return self._generate_full_ops_report()
+            elif operation == "hot_questions":
+                period = "week" if "周" in question else "day"
+                return self._analyze_hot_questions(period)
+            elif operation == "knowledge_growth":
+                period = "week" if "周" in question else "month"
+                return self._analyze_knowledge_growth(period)
+            elif operation == "agent_success_rate":
+                period = "week" if "周" in question else "month"
+                return self._analyze_agent_success_rate(period)
+            elif operation == "tool_call_failures":
+                return self._analyze_tool_call_failures()
             else:
                 return {
                     "answer": "抱歉，我暂时无法处理这类管理请求。",
@@ -132,10 +155,10 @@ class AdminCopilotAgent:
     def _get_stats(self) -> Dict[str, Any]:
         """获取统计数据"""
         try:
-            doc_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_docs") or {}
-            chunk_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_chunks") or {}
+            doc_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_doc") or {}
+            chunk_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_chunk") or {}
             qa_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM qa_log") or {}
-            user_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM users") or {}
+            user_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM user") or {}
             unanswered_count = mysql_client.fetch_one("SELECT COUNT(*) as count FROM qa_unanswered") or {}
 
             answer = f"""📊 系统统计信息
@@ -246,6 +269,90 @@ class AdminCopilotAgent:
         else:
             return {
                 "answer": "完整运营报告生成失败：" + str(result.get("error", "")),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "error": True
+            }
+
+    def _analyze_hot_questions(self, period: str) -> Dict[str, Any]:
+        """分析热门问题 - 调用Ops Agent"""
+        logger.info(f"[AdminCopilotAgent] Analyzing hot questions, period: {period}")
+        result = self.ops_agent.analyze("hot_questions", period=period)
+        if result.get("success"):
+            return {
+                "answer": result.get("answer", ""),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "data": result.get("data", {})
+            }
+        else:
+            return {
+                "answer": "热门问题分析失败：" + str(result.get("error", "")),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "error": True
+            }
+
+    def _analyze_knowledge_growth(self, period: str) -> Dict[str, Any]:
+        """分析知识库增长趋势 - 调用Ops Agent"""
+        logger.info(f"[AdminCopilotAgent] Analyzing knowledge growth, period: {period}")
+        result = self.ops_agent.analyze("knowledge_growth", period=period)
+        if result.get("success"):
+            return {
+                "answer": result.get("answer", ""),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "data": result.get("data", {})
+            }
+        else:
+            return {
+                "answer": "知识库增长趋势分析失败：" + str(result.get("error", "")),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "error": True
+            }
+
+    def _analyze_agent_success_rate(self, period: str) -> Dict[str, Any]:
+        """分析Agent成功率 - 调用Ops Agent"""
+        logger.info(f"[AdminCopilotAgent] Analyzing agent success rate, period: {period}")
+        result = self.ops_agent.analyze("agent_success_rate", period=period)
+        if result.get("success"):
+            return {
+                "answer": result.get("answer", ""),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "data": result.get("data", {})
+            }
+        else:
+            return {
+                "answer": "Agent成功率分析失败：" + str(result.get("error", "")),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "error": True
+            }
+
+    def _analyze_tool_call_failures(self) -> Dict[str, Any]:
+        """分析工具调用失败排行 - 调用Ops Agent"""
+        logger.info("[AdminCopilotAgent] Analyzing tool call failures")
+        result = self.ops_agent.analyze("tool_call_failures")
+        if result.get("success"):
+            return {
+                "answer": result.get("answer", ""),
+                "sources": [],
+                "has_sources": False,
+                "task_type": "admin_copilot",
+                "data": result.get("data", {})
+            }
+        else:
+            return {
+                "answer": "工具调用失败分析失败：" + str(result.get("error", "")),
                 "sources": [],
                 "has_sources": False,
                 "task_type": "admin_copilot",

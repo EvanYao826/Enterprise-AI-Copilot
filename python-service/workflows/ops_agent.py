@@ -14,6 +14,10 @@ class OpsAgent:
     1. 自动分析日志
     2. 自动提示知识缺口
     3. 自动生成后台建议
+    4. 热门问题日报/周报
+    5. 知识库增长趋势
+    6. Agent 成功率与失败率趋势
+    7. 工具调用失败排行
     """
 
     def __init__(self):
@@ -21,7 +25,11 @@ class OpsAgent:
             "knowledge_gap": "知识缺口分析",
             "qa_trend": "问答趋势分析",
             "user_activity": "用户活跃度分析",
-            "full_report": "完整运营报告"
+            "full_report": "完整运营报告",
+            "hot_questions": "热门问题分析",
+            "knowledge_growth": "知识库增长趋势",
+            "agent_success_rate": "Agent成功率分析",
+            "tool_call_failures": "工具调用失败排行"
         }
 
     def analyze(self, analysis_type: str = "full_report", **kwargs) -> Dict[str, Any]:
@@ -46,6 +54,14 @@ class OpsAgent:
                 return self._analyze_user_activity()
             elif analysis_type == "full_report":
                 return self._generate_full_report()
+            elif analysis_type == "hot_questions":
+                return self._analyze_hot_questions(**kwargs)
+            elif analysis_type == "knowledge_growth":
+                return self._analyze_knowledge_growth(**kwargs)
+            elif analysis_type == "agent_success_rate":
+                return self._analyze_agent_success_rate(**kwargs)
+            elif analysis_type == "tool_call_failures":
+                return self._analyze_tool_call_failures()
             else:
                 return {
                     "success": False,
@@ -338,6 +354,210 @@ class OpsAgent:
 
         return suggestions
 
+    def _analyze_hot_questions(self, period: str = "week") -> Dict[str, Any]:
+        """分析热门问题（日报/周报）"""
+        logger.info(f"[OpsAgent] Analyzing hot questions, period: {period}")
+
+        days = 7 if period == "week" else 1
+
+        hot_query = f"""
+            SELECT question, COUNT(*) as count
+            FROM qa_log
+            WHERE create_time >= DATE_SUB(NOW(), INTERVAL {days} DAY)
+            GROUP BY question
+            ORDER BY count DESC
+            LIMIT 15
+        """
+        hot_questions = mysql_client.fetch_all(hot_query) or []
+
+        answer = f"""🔥 热门问题{'周报' if period == 'week' else '日报'}
+        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
+📊 统计概览：
+- 统计周期：最近{days}天
+- 问题总数：{sum(q.get('count', 0) for q in hot_questions)}
+- 独立问题数：{len(hot_questions)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🏆 TOP 10 热门问题：
+        """
+        for i, q in enumerate(hot_questions[:10], 1):
+            answer += f"\n{i}. {q.get('question', '')} ({q.get('count', 0)}次)"
+
+        return {
+            "success": True,
+            "answer": answer,
+            "data": {
+                "hot_questions": hot_questions,
+                "period": period,
+                "total_count": sum(q.get('count', 0) for q in hot_questions),
+                "unique_count": len(hot_questions)
+            },
+            "task_type": "ops_analysis"
+        }
+
+    def _analyze_knowledge_growth(self, period: str = "week") -> Dict[str, Any]:
+        """分析知识库增长趋势"""
+        logger.info(f"[OpsAgent] Analyzing knowledge growth, period: {period}")
+
+        days = 7 if period == "week" else 30
+
+        growth_query = f"""
+            SELECT 
+                DATE(create_time) as log_date,
+                COUNT(*) as doc_count
+            FROM knowledge_doc
+            WHERE create_time >= DATE_SUB(NOW(), INTERVAL {days} DAY)
+            GROUP BY DATE(create_time)
+            ORDER BY log_date ASC
+        """
+        growth_data = mysql_client.fetch_all(growth_query) or []
+
+        chunk_growth_query = f"""
+            SELECT 
+                DATE(k.create_time) as log_date,
+                COUNT(*) as chunk_count
+            FROM knowledge_chunk k
+            JOIN knowledge_doc d ON k.doc_id = d.id
+            WHERE d.create_time >= DATE_SUB(NOW(), INTERVAL {days} DAY)
+            GROUP BY DATE(k.create_time)
+            ORDER BY log_date ASC
+        """
+        chunk_data = mysql_client.fetch_all(chunk_growth_query) or []
+
+        total_docs = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_doc") or {}
+        total_chunks = mysql_client.fetch_one("SELECT COUNT(*) as count FROM knowledge_chunk") or {}
+
+        answer = f"""📈 知识库增长趋势（最近{days}天）
+        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
+📚 当前知识库规模：
+- 文档总数：{total_docs.get('count', 0)}
+- 知识片段：{total_chunks.get('count', 0)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📅 每日新增文档：
+        """
+        for day in growth_data:
+            answer += f"\n{day.get('log_date', '')}: {day.get('doc_count', 0)} 篇"
+
+        answer += f"\n\n📊 每日新增知识片段："
+        for day in chunk_data[:7]:
+            answer += f"\n{day.get('log_date', '')}: {day.get('chunk_count', 0)} 个"
+
+        return {
+            "success": True,
+            "answer": answer,
+            "data": {
+                "growth_data": growth_data,
+                "chunk_data": chunk_data,
+                "total_docs": total_docs.get('count', 0),
+                "total_chunks": total_chunks.get('count', 0),
+                "period": period
+            },
+            "task_type": "ops_analysis"
+        }
+
+    def _analyze_agent_success_rate(self, period: str = "week") -> Dict[str, Any]:
+        """分析Agent成功率与失败率趋势"""
+        logger.info(f"[OpsAgent] Analyzing agent success rate, period: {period}")
+
+        days = 7 if period == "week" else 30
+
+        success_query = f"""
+            SELECT 
+                DATE(start_time) as log_date,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count,
+                COUNT(*) as total_count
+            FROM agent_run
+            WHERE start_time >= DATE_SUB(NOW(), INTERVAL {days} DAY)
+            GROUP BY DATE(start_time)
+            ORDER BY log_date ASC
+        """
+        success_data = mysql_client.fetch_all(success_query) or []
+
+        total_success = sum(d.get('success_count', 0) for d in success_data)
+        total_failed = sum(d.get('failed_count', 0) for d in success_data)
+        total_runs = total_success + total_failed
+        overall_rate = (total_success / total_runs * 100) if total_runs > 0 else 0
+
+        answer = f"""✅ Agent成功率分析（最近{days}天）
+        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
+📊 总体统计：
+- 运行总次数：{total_runs}
+- 成功次数：{total_success}
+- 失败次数：{total_failed}
+- 成功率：{overall_rate:.1f}%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📅 每日成功率：
+        """
+        for day in success_data:
+            day_total = day.get('total_count', 0)
+            day_rate = (day.get('success_count', 0) / day_total * 100) if day_total > 0 else 0
+            answer += f"\n{day.get('log_date', '')}: {day_rate:.1f}% ({day.get('success_count', 0)}/{day_total})"
+
+        return {
+            "success": True,
+            "answer": answer,
+            "data": {
+                "success_data": success_data,
+                "total_runs": total_runs,
+                "total_success": total_success,
+                "total_failed": total_failed,
+                "overall_success_rate": overall_rate,
+                "period": period
+            },
+            "task_type": "ops_analysis"
+        }
+
+    def _analyze_tool_call_failures(self) -> Dict[str, Any]:
+        """分析工具调用失败排行"""
+        logger.info("[OpsAgent] Analyzing tool call failures")
+
+        failure_query = """
+            SELECT 
+                tool_name,
+                COUNT(*) as failure_count,
+                GROUP_CONCAT(DISTINCT error_message ORDER BY timestamp DESC LIMIT 5) as recent_errors
+            FROM tool_call
+            WHERE status = 'failed'
+            GROUP BY tool_name
+            ORDER BY failure_count DESC
+            LIMIT 10
+        """
+        failure_data = mysql_client.fetch_all(failure_query) or []
+
+        total_failures = sum(f.get('failure_count', 0) for f in failure_data)
+
+        answer = f"""🔧 工具调用失败排行
+        \n━━━━━━━━━━━━━━━━━━━━━━━━━\n
+📊 统计概览：
+- 失败工具种类：{len(failure_data)}
+- 总失败次数：{total_failures}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ 失败排行：
+        """
+        for i, tool in enumerate(failure_data, 1):
+            answer += f"\n{i}. {tool.get('tool_name', '')}: {tool.get('failure_count', 0)} 次失败"
+
+        answer += f"\n\n💡 建议：关注失败次数较多的工具，检查其配置和依赖服务是否正常。"
+
+        return {
+            "success": True,
+            "answer": answer,
+            "data": {
+                "failure_data": failure_data,
+                "total_failures": total_failures,
+                "failed_tool_count": len(failure_data)
+            },
+            "task_type": "ops_analysis"
+        }
+
     def get_analysis_options(self) -> Dict[str, Any]:
         """获取可执行的分析选项"""
         return {
@@ -346,7 +566,11 @@ class OpsAgent:
                 "knowledge_gap": "分析知识缺口和未命中问题",
                 "qa_trend": "分析问答趋势和统计",
                 "user_activity": "分析用户活跃度",
-                "full_report": "生成完整运营报告（推荐）"
+                "full_report": "生成完整运营报告（推荐）",
+                "hot_questions": "分析热门问题日报/周报",
+                "knowledge_growth": "分析知识库增长趋势",
+                "agent_success_rate": "分析Agent成功率与失败率",
+                "tool_call_failures": "分析工具调用失败排行"
             }
         }
 
