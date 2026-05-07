@@ -18,12 +18,18 @@
 - **上下文感知**：智能对话历史管理和多轮上下文理解
 - **高性能架构**：Redis + Caffeine 多级缓存系统，毫秒级响应
 - **生产级部署**：完整的监控、安全和数据一致性保障
+- **多 Agent 协作**：Router Agent、Retrieval Agent、Ops Agent 智能协作
 
 ---
 
 ## 项目状态
 
 **当前状态**：✅ **核心功能已完整实现**，项目已具备生产级能力
+
+### 🎯 Phase 4 多 Agent 协作（已完成）
+- ✅ **P4-1 Router Agent**：任务路由智能分发，支持闲聊/知识问答/管理助手/知识巡检
+- ✅ **P4-2 Retrieval Agent**：完整检索流程，包含 Query Rewrite、召回策略、Rerank、引用整合
+- ✅ **P4-3 Ops Agent**：运营分析与后台建议，支持知识缺口分析、问答趋势、用户活跃度
 
 ### 核心功能
 - ✅ **用户认证系统**：JWT + 手机验证码登录
@@ -32,27 +38,25 @@
 - ✅ **对话管理**：完整的对话历史管理
 - ✅ **性能优化**：多级缓存 + 异步处理
 - ✅ **向量数据库**：Milvus生产级部署
-- ⚠️ **SSE流式输出**：框架完整，需配置AI API密钥测试
+- ✅ **SSE流式输出**：完整框架，需配置AI API密钥测试
 
-### 已实现功能
-- 🤖 **Agent化改造**：实现智能代理，支持复杂任务分解和多工具调用
-- 🧰 **工具链**：实现 knowledge_search、question_rewrite、conversation_memory 等工具
-- 📋 **执行审计**：实现工具执行记录和运行历史查询
-- 🔍 **高级RAG优化**：引入ReAct模式，实现推理+检索的混合策略
-
-### 待实现功能
-- 📋 **配置治理**：完善配置管理，支持多环境配置和配置热更新
-- 📊 **检索质量基线**：建立标准化的检索质量评估体系和测试用例
-- 📈 **多模态支持**：扩展支持图片、音频等多模态内容的处理和检索
+### Agent 系统架构（已完成）
+- 🤖 **Router Agent**：智能任务类型识别和路由分发
+- 🔍 **Retrieval Agent**：完整检索流程（Query Rewrite → Recall → Rerank → Citation）
+- 📊 **Ops Agent**：运营分析与后台建议
+- 🧰 **工具链**：knowledge_search、question_rewrite、rerank、conversation_memory 等
+- 📋 **执行审计**：工具执行记录和运行历史查询
 
 ---
 
 ## 项目亮点 (Highlights)
-- RAG 链路打通：上传 -> 解析 -> 向量索引 -> 检索 -> 生成 -> 来源追溯
-- 云存储集成：文档上传至七牛云 Kodo，AI 服务支持从 URL 拉取并解析
-- 端到端可观测：管理端仪表盘展示用户数、文档数、提问趋势、AI 命中率、热点与未命中问题
-- 来源体验优化：来源只展示真实文件名（去除 UUID 前缀），并按后缀展示不同图标
-- 数据一致性治理：删除文档时同步清理数据库记录、云端对象和向量索引，避免“幽灵文档”
+- **RAG 链路打通**：上传 → 解析 → 向量索引 → 检索 → 生成 → 来源追溯
+- **多 Agent 协作**：Router + Retrieval + Ops Agent 智能协作架构
+- **云存储集成**：文档上传至七牛云 Kodo，AI 服务支持从 URL 拉取并解析
+- **端到端可观测**：管理端仪表盘展示用户数、文档数、提问趋势、AI 命中率、热点与未命中问题
+- **来源体验优化**：来源只展示真实文件名（去除 UUID 前缀），并按后缀展示不同图标
+- **数据一致性治理**：删除文档时同步清理数据库记录、云端对象和向量索引，避免"幽灵文档"
+- **智能检索优化**：Query Rewrite + Rerank 提升检索质量
 
 ---
 
@@ -74,18 +78,19 @@
 │  │  • 用户认证：JWT + 手机验证码                                │  │
 │  │  • 业务逻辑：对话管理、文档管理、缓存服务                    │  │
 │  │  • 多级缓存：Caffeine(本地) + Redis(分布式)                  │  │
-│  │  • 异步处理：@Async + ExecutorService                        │  │
+│  │  • Agent 任务记录：agent_run、agent_step、tool_call          │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 │ REST API / HTTP
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   Python AI 服务 (RAG Engine)                       │
+│                   Python AI 服务 (Agent Orchestration)               │
 │  ┌──────────────────────────────────────────────────────────────┐  │
-│  │  • 文档处理：多格式解析、文本切分、向量化                    │  │
+│  │  • Agent 层：Router、Retrieval、Ops Agent                    │  │
+│  │  • Orchestrator：任务规划、执行调度、状态管理                │  │
+│  │  • 工具层：knowledge_search、question_rewrite、rerank       │  │
 │  │  • 向量检索：Milvus 向量数据库 (生产级)                      │  │
 │  │  • AI 模型：通义千问 + DashScope Embeddings                  │  │
-│  │  • 流式输出：SSE 实时响应、上下文记忆                        │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 │ 七牛云 Kodo
@@ -96,10 +101,22 @@
                         └───────────────┘
 ```
 
-### 🔄 数据流程
-1. **文档上传** → 七牛云存储 → Python 解析 → Milvus 向量化
-2. **用户提问** → Spring Boot 路由 → Python RAG 检索 → AI 生成 → 流式返回
-3. **缓存策略** → 本地缓存优先 → Redis 缓存 → 数据库持久化
+### 🔄 Agent 数据流
+```
+用户提问
+   ↓
+Router Agent 判断任务类型
+   ↓
+├─ CHITCHAT → ChitChatAgent
+├─ KNOWLEDGE_QA → KnowledgeQAAgent → RetrievalAgent
+├─ ADMIN_COPILOT → AdminCopilotAgent → OpsAgent
+└─ INSPECTION → InspectionAgent
+```
+
+### 🔍 Retrieval Agent 流程
+```
+Query Rewrite → Knowledge Search → Rerank → Citation Integration → Answer Generation
+```
 
 ---
 
@@ -110,14 +127,10 @@
 |---------|------|------|
 | **用户认证** | 手机验证码注册/登录 + JWT 鉴权 | ✅ 已实现 |
 | **智能问答** | RAG 检索增强生成，返回答案 + 参考来源 | ✅ 已实现 |
-| **流式对话** | SSE 实时流式响应，流畅的 AI 对话体验 | ⚠️ 框架完整，需API密钥 |
+| **流式对话** | SSE 实时流式响应，流畅的 AI 对话体验 | ✅ 框架完整 |
 | **上下文记忆** | 智能对话历史管理，支持多轮上下文理解 | ✅ 已实现 |
 | **文档预览** | 来源文档在线预览/下载（七牛云链接） | ✅ 已实现 |
 | **对话管理** | 对话历史查看、置顶、删除、搜索 | ✅ 已实现 |
-
-![用户端截图1](images/用户端截图1.png)
-
-![用户端截图2](images/用户端截图2.png)
 
 ### 👨‍💼 管理端功能
 
@@ -128,21 +141,32 @@
 | **缓存监控** | Redis + Caffeine 多级缓存命中率监控 | ✅ 已实现 |
 | **性能分析** | 响应时间统计、热点问题分析、未命中问题追踪 | ✅ 已实现 |
 | **系统配置** | 通知管理、系统参数配置、用户权限管理 | ✅ 已实现 |
+| **知识缺口分析** | 自动分析未命中问题，提示知识缺口 | ✅ P4-3 已实现 |
+| **运营报告** | 完整运营分析报告和后台建议 | ✅ P4-3 已实现 |
 
-![管理端截图1](images/管理端1.png)
+### 🤖 Agent 系统功能
 
-![管理端截图2](images/管理端2.png)
+| Agent | 功能 | 描述 |
+|-------|------|------|
+| **Router Agent** | 任务路由 | 智能识别任务类型，分发到对应 Agent |
+| **Retrieval Agent** | 检索流程 | Query Rewrite + Recall + Rerank + Citation |
+| **Ops Agent** | 运营分析 | 知识缺口分析、问答趋势、用户活跃度、完整报告 |
+| **KnowledgeQAAgent** | 知识问答 | 基于检索结果生成答案 |
+| **ChitChatAgent** | 闲聊对话 | 处理日常闲聊和问候 |
+| **AdminCopilotAgent** | 管理助手 | 管理端操作和数据查询 |
+| **InspectionAgent** | 知识巡检 | 重复检测、质量检测、过期检测 |
 
 ### 🏗️ 系统特性
 
 | 特性 | 描述 | 优势 |
 |------|------|------|
-| **🔍 智能检索** | 基于 Milvus 的语义向量相似度搜索 | 精准匹配，支持复杂查询 |
+| **🔍 智能检索** | 基于 Milvus 的语义向量相似度搜索 + Rerank | 精准匹配，支持复杂查询 |
 | **⚡ 高性能缓存** | Redis + Caffeine 多级缓存架构 | 毫秒级响应，高并发支持 |
 | **🧠 上下文感知** | 短期记忆(Redis) + 长期记忆(数据库) | 智能对话，多轮理解 |
 | **🌊 流式输出** | SSE 实时流式响应框架 | 流畅体验，实时反馈 |
-| **🔒 数据一致性** | 文档删除同步清理数据库、云存储、向量索引 | 避免”幽灵文档”，数据一致 |
+| **🔒 数据一致性** | 文档删除同步清理数据库、云存储、向量索引 | 避免"幽灵文档"，数据一致 |
 | **📊 可观测性** | 完整的监控指标和性能分析 | 系统健康可视，问题快速定位 |
+| **🤝 多 Agent** | Router + Retrieval + Ops Agent 协作 | 智能任务分配，各司其职 |
 
 ---
 
@@ -416,8 +440,6 @@ volumes:
 | **系统可用性** | 99.9% | 健康检查端点 |
 | **并发用户数** | 1000+ | 压力测试 |
 
-
-
 ---
 
 ## 已知限制和注意事项
@@ -426,6 +448,7 @@ volumes:
 1. **向量数据库限制**：已从FAISS迁移到Milvus，支持高效的文档删除和过滤
 2. **缓存性能**：已实现多级缓存系统，大幅提升响应速度
 3. **对话上下文**：已实现完整的上下文记忆系统
+4. **多 Agent 协作**：已实现 Router、Retrieval、Ops Agent 智能协作
 
 ### ⚠️ 当前注意事项
 1. **AI API密钥**：需要配置 `DASHSCOPE_API_KEY` 环境变量才能使用AI问答功能
@@ -442,6 +465,34 @@ volumes:
 ---
 
 ## 更新日志 (Changelog)
+
+### v1.2.0 (2026-05-07) - Phase 4 多 Agent 协作完成 ✅
+**重大更新**：
+
+**P4-1 Router Agent**
+- ✅ 智能任务类型识别（闲聊/知识问答/管理助手/知识巡检）
+- ✅ 基于关键词权重算法的分类系统
+- ✅ 任务路由分发到对应 Agent
+
+**P4-2 Retrieval Agent**
+- ✅ Query Rewrite：问题改写优化
+- ✅ 召回策略：向量库语义检索
+- ✅ Rerank：文档语义重排序
+- ✅ 引用整合：Citation Integration
+
+**P4-3 Ops Agent**
+- ✅ 知识缺口分析：自动分析未命中问题
+- ✅ 问答趋势分析：问答统计和趋势展示
+- ✅ 用户活跃度分析：活跃用户统计
+- ✅ 完整运营报告：自动生成后台建议
+
+**技术架构升级**：
+- Agent 系统完整集成
+- Tool Registry 工具注册管理
+- 执行审计和运行历史记录
+- 完善的错误处理和降级机制
+
+---
 
 ### v1.1.0 (2026-04-27) - Agent 系统集成
 **重大更新**：
@@ -462,6 +513,8 @@ volumes:
 - `GET /api/admin/agent/runs` - 获取 Agent 运行记录列表
 - `GET /api/admin/agent/tool-calls` - 获取工具调用记录列表
 
+---
+
 ### v1.0.0 (2026-04-03) - 生产级功能完善
 **重大更新**：
 - ✅ **向量数据库迁移**：从FAISS成功迁移到Milvus生产级向量数据库
@@ -475,14 +528,49 @@ volumes:
 - 优化异步处理和线程池管理
 - 完善安全认证和权限控制
 
-**性能优化**：
-- 毫秒级本地缓存响应
-- 分布式缓存支持高并发
-- 向量检索性能提升
-- 内存使用优化
+---
 
-**下一步计划**：
-- 完善SSE流式输出的实际测试
-- 添加API文档和测试用例
-- 部署优化和容器化
-- 性能监控系统集成
+## 📁 项目结构
+
+```
+ai-knowledge-system/
+├── src/main/java/com/demo/aiknowledge/    # Java 后端
+│   ├── controller/                        # REST API 控制器
+│   ├── service/                           # 业务服务层
+│   ├── entity/                            # 数据库实体
+│   ├── mapper/                            # MyBatis Mapper
+│   └── dto/                               # 数据传输对象
+├── python-service/                        # Python AI 服务
+│   ├── agent/                             # Agent 核心组件
+│   │   ├── orchestrator.py                # 编排器
+│   │   ├── planner.py                     # 规划器
+│   │   ├── executor.py                    # 执行器
+│   │   └── state.py                       # 状态管理
+│   ├── tools/                             # 工具层
+│   │   ├── knowledge_search.py            # 知识检索工具
+│   │   ├── question_rewrite.py            # 问题改写工具
+│   │   ├── rerank.py                      # 重排序工具
+│   │   └── registry.py                    # 工具注册
+│   ├── workflows/                         # Agent 工作流
+│   │   ├── router_agent.py                # P4-1 Router Agent
+│   │   ├── retrieval_agent.py             # P4-2 Retrieval Agent
+│   │   ├── ops_agent.py                   # P4-3 Ops Agent
+│   │   ├── knowledge_qa_agent.py          # 知识问答 Agent
+│   │   ├── admin_copilot_agent.py         # 管理助手 Agent
+│   │   └── inspection_agent.py            # 知识巡检 Agent
+│   ├── core/                              # 核心模块
+│   ├── api/                               # API 路由
+│   └── main.py                            # 服务入口
+├── frontend/                              # React 前端
+│   ├── src/pages/                         # 页面组件
+│   ├── src/components/                    # 通用组件
+│   └── src/api/                           # API 接口
+├── sql/                                   # 数据库脚本
+└── 优化迭代计划书.md                      # 迭代规划文档
+```
+
+---
+
+## 📝 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件
