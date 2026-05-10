@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from tools.base import Tool
 from tools.execution import tool_execution_tracker
 from core.config import config
@@ -59,31 +60,37 @@ class ToolRegistry:
         max_retries = tool.metadata.max_retries
         timeout_ms = tool.metadata.timeout_ms
         
+        timeout_sec = timeout_ms / 1000.0
+
         while retries <= max_retries:
+            start_time = time.time()
             try:
-                start_time = time.time()
-                
-                # 执行工具
-                result = tool.execute(parameters)
-                
+                # 使用线程池执行工具，强制超时控制
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(tool.execute, parameters)
+                    try:
+                        result = future.result(timeout=timeout_sec)
+                    except FutureTimeoutError:
+                        future.cancel()
+                        raise TimeoutError(f"Tool {tool_name} timed out after {timeout_ms}ms")
+
                 execution_time = (time.time() - start_time) * 1000
                 config.logger.info(f"Tool {tool_name} executed in {execution_time:.2f}ms")
-                
+
                 # 完成工具调用跟踪
                 tool_execution_tracker.complete_tool_call(tool_call_id, result, execution_time)
-                
+
                 return result
-                
+
             except Exception as e:
-                execution_time = (time.time() - start_time) * 1000 if 'start_time' in locals() else 0
+                execution_time = (time.time() - start_time) * 1000
                 retries += 1
                 if retries > max_retries:
                     config.logger.error(f"Tool {tool_name} failed after {max_retries} retries: {e}")
-                    # 失败工具调用跟踪
                     tool_execution_tracker.fail_tool_call(tool_call_id, str(e), execution_time)
                     raise
                 config.logger.warning(f"Tool {tool_name} failed (attempt {retries}/{max_retries}): {e}")
-                time.sleep(0.5)  # 重试间隔
+                time.sleep(0.5)
     
     def get_tool_info(self, tool_name: str) -> Dict[str, Any]:
         """获取工具信息"""
