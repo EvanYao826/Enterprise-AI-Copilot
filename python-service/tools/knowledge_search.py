@@ -77,7 +77,7 @@ class KnowledgeSearchTool(Tool):
         top_k = int(parameters.get("top_k", 3))
         similarity_threshold = parameters.get("similarity_threshold", 0.75)
         use_rerank = parameters.get("use_rerank", True)
-        
+
         # 执行检索
         docs = self.vector_store.search(
             query=query,
@@ -85,16 +85,20 @@ class KnowledgeSearchTool(Tool):
             similarity_threshold=similarity_threshold,
             use_rerank=use_rerank
         )
-        
-        # 格式化结果
+
+        # 格式化结果（同时兼容 documents 和 chunks 两种 key）
         formatted_docs = []
+        scores = []
         for doc in docs:
             formatted_docs.append({
                 "content": doc.page_content,
                 "metadata": doc.metadata
             })
-        
+            scores.append(getattr(doc, 'score', 0.5))
+
         return {
             "documents": formatted_docs,
+            "chunks": formatted_docs,
+            "scores": scores,
             "count": len(formatted_docs)
         }

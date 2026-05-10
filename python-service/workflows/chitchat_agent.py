@@ -37,9 +37,9 @@ class ChitChatAgent:
                 "为什么程序员喜欢黑暗模式？因为 Light attracts bugs！",
             ],
             "default": [
-                "这是个有趣的话题！不过我主要专注于知识问答，你有什么具体的问题吗？",
-                "嗯嗯，有意思！你想了解一些知识相关的内容吗？",
-                "好的，不过我更擅长回答知识类问题，你有什么想了解的吗？",
+                "哈哈，这个话题挺有意思的！你最近有什么新鲜事想分享吗？",
+                "嗯嗯，我听着呢～还有什么想聊的吗？",
+                "有意思！能跟我说说更多吗？",
             ]
         }
 
@@ -176,11 +176,7 @@ class ChitChatAgent:
         if any(kw in lower_question for kw in ["可以吗", "行吗", "好吗", "对不对", "是不是", "会不会"]):
             return self._llm_chitchat(question)
 
-        # 短文本且无明确知识意图，直接用预设回复，不调LLM
-        if len(question.strip()) <= 10 and not any(kw in lower_question for kw in ["什么", "怎么", "如何", "为什么", "解释", "原理"]):
-            return self.chitchat_prompts["default"][0]
-
-        # 其他闲聊 — 调LLM
+        # 其他所有闲聊 — 调LLM生成自然回复
         return self._llm_chitchat(question)
 
     def _llm_chitchat(self, question: str) -> str:

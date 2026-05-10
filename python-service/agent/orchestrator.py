@@ -71,43 +71,50 @@ class Orchestrator:
                     step_type=step_type.value
                 ))
 
-                try:
-                    self.executor.execute_step(state, step)
+                retry_count = 0
+                step_done = False
 
-                    self.event_bus.publish(StepCompletedEvent(
-                        run_id=state.run_id,
-                        step_id=step.step_id,
-                        step_name=step_name,
-                        step_type=step_type.value,
-                        output=step.output_data,
-                        duration_ms=step.duration_ms or 0
-                    ))
+                while not step_done:
+                    try:
+                        self.executor.execute_step(state, step)
 
-                    if state.status == AgentStatus.WAITING:
-                        clarification_output = self._handle_clarification(state)
-                        state.complete(clarification_output)
-                        break
+                        self.event_bus.publish(StepCompletedEvent(
+                            run_id=state.run_id,
+                            step_id=step.step_id,
+                            step_name=step_name,
+                            step_type=step_type.value,
+                            output=step.output_data,
+                            duration_ms=step.duration_ms or 0
+                        ))
 
-                    if step_type == StepType.ANSWER_GENERATION:
-                        final_output = self._build_success_response(state)
-                        state.complete(final_output)
-                        break
+                        step_done = True
 
-                except Exception as e:
-                    logger.error(f"[{state.run_id}] Step {step_name} failed: {str(e)}")
-                    self.event_bus.publish(StepFailedEvent(
-                        run_id=state.run_id,
-                        step_id=step.step_id,
-                        step_name=step_name,
-                        step_type=step_type.value,
-                        error=str(e)
-                    ))
+                        if state.status == AgentStatus.WAITING:
+                            clarification_output = self._handle_clarification(state)
+                            state.complete(clarification_output)
+                            break
 
-                    if self.policies.should_retry(0, e):
-                        continue
-                    else:
-                        state.fail(str(e), "STEP_EXECUTION_ERROR")
-                        break
+                        if step_type == StepType.ANSWER_GENERATION:
+                            final_output = self._build_success_response(state)
+                            state.complete(final_output)
+                            break
+
+                    except Exception as e:
+                        logger.error(f"[{state.run_id}] Step {step_name} failed (attempt {retry_count + 1}): {str(e)}")
+                        self.event_bus.publish(StepFailedEvent(
+                            run_id=state.run_id,
+                            step_id=step.step_id,
+                            step_name=step_name,
+                            step_type=step_type.value,
+                            error=str(e)
+                        ))
+
+                        if self.policies.should_retry(retry_count, e):
+                            retry_count += 1
+                        else:
+                            state.fail(str(e), "STEP_EXECUTION_ERROR")
+                            step_done = True
+                            break
 
                 should_terminate, reason = self.planner.should_terminate(state)
                 if should_terminate:
