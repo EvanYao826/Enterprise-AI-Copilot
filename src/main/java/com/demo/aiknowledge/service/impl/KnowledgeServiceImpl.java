@@ -46,6 +46,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Value("${qiniu.domain:}")
     private String qiniuDomain;
 
+    // 本地存储路径（未配置七牛云时使用）
+    @Value("${upload.dir:./uploads}")
+    private String uploadDir;
+
     @Override
     public KnowledgeDoc uploadDoc(MultipartFile file, Long categoryId) {
         String fileName = file.getOriginalFilename();
@@ -73,7 +77,6 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         } else {
             // 保存到本地
             try {
-                String uploadDir = "D:/aiknowledge/uploads";
                 File dir = new File(uploadDir);
                 if (!dir.exists()) {
                     dir.mkdirs();
