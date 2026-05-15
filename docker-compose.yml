@@ -1,0 +1,215 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # MySQL 数据库
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: ai-knowledge-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ai_knowledge_root_2024}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ai_knowledge_db}
+      MYSQL_USER: ${MYSQL_USER:-ai_knowledge}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ai_knowledge_2024}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-ai_knowledge_root_2024}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-knowledge-net
+
+  # ============================================
+  # Redis 缓存
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: ai-knowledge-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-knowledge-net
+
+  # ============================================
+  # Java 后端
+  # ============================================
+  java-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.java
+    container_name: ai-knowledge-java
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-ai_knowledge_db}
+      DB_USER: ${DB_USER:-ai_knowledge}
+      DB_PASSWORD: ${DB_PASSWORD:-ai_knowledge_2024}
+      SERVER_PORT: 8080
+      # Redis 配置
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # JWT 配置
+      JWT_SECRET: ${JWT_SECRET:-docker-jwt-secret-change-in-production}
+      # 七牛云配置（留空则使用本地存储）
+      QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
+      QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
+      QINIU_BUCKET: ${QINIU_BUCKET:-}
+      QINIU_DOMAIN: ${QINIU_DOMAIN:-}
+      # 上传文件存储路径
+      UPLOAD_DIR: /app/uploads
+      # AI 服务地址
+      AI_SERVICE_URL: http://python-service:8000/api
+      # 阿里云短信（留空则模拟模式）
+      ALIYUN_SMS_ACCESS_KEY_ID: ${ALIYUN_SMS_ACCESS_KEY_ID:-}
+      ALIYUN_SMS_ACCESS_KEY_SECRET: ${ALIYUN_SMS_ACCESS_KEY_SECRET:-}
+      ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
+      ALIYUN_SMS_TEMPLATE_CODE: ${ALIYUN_SMS_TEMPLATE_CODE:-}
+    ports:
+      - "8080:8080"
+    volumes:
+      - java_uploads:/app/uploads
+    networks:
+      - ai-knowledge-net
+
+  # ============================================
+  # Python AI 服务
+  # ============================================
+  python-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: ai-knowledge-python
+    restart: unless-stopped
+    environment:
+      # AI API Key（必须配置）
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-sk-your-api-key-here}
+      # Embedding 模型
+      EMBEDDING_MODEL: local
+      LOCAL_EMBEDDING_MODEL: BAAI/bge-small-zh-v1.5
+      # 向量存储
+      USE_MILVUS: "false"
+      VECTOR_STORE_PERSIST_DIR: /app/faiss_index
+      VECTOR_STORE_COLLECTION_NAME: ai_knowledge_collection
+      # Rerank
+      RERANKER_TYPE: simple
+      # 文本切分
+      CHUNK_STRATEGY: semantic
+      CHUNK_SIZE: "500"
+      CHUNK_OVERLAP: "50"
+      MIN_CHUNK_SIZE: "100"
+      # OCR（Docker 中已安装）
+      TESSERACT_PATH: ""
+      # API 配置
+      API_HOST: "0.0.0.0"
+      API_PORT: "8000"
+      CORS_ORIGINS: http://localhost,http://127.0.0.1
+      # MySQL 配置（用于记忆系统，变量名需匹配 mysql_client.py）
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ai_knowledge_db}
+      MYSQL_USERNAME: ${MYSQL_USER:-ai_knowledge}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ai_knowledge_2024}
+      # Redis 配置（用于会话记忆）
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # 日志级别
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    volumes:
+      - python_faiss:/app/faiss_index
+      - python_temp:/app/temp
+      - python_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ai-knowledge-net
+
+  # ============================================
+  # 前端
+  # ============================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: ai-knowledge-frontend
+    restart: unless-stopped
+    depends_on:
+      - java-backend
+      - python-service
+    ports:
+      - "3000:80"
+    networks:
+      - ai-knowledge-net
+
+  # ============================================
+  # Milvus（可选，默认不启动）
+  # ============================================
+  # 取消注释以启用 Milvus
+  # milvus:
+  #   image: milvusdb/milvus:v2.3-latest
+  #   container_name: ai-knowledge-milvus
+  #   ports:
+  #     - "19530:19530"
+  #     - "9091:9091"
+  #   environment:
+  #     ETCD_USE_EMBED: "true"
+  #     COMMON_STORAGETYPE: local
+  #   volumes:
+  #     - milvus_data:/var/lib/milvus
+  #   networks:
+  #     - ai-knowledge-net
+
+# ============================================
+# 数据卷
+# ============================================
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  java_uploads:
+    driver: local
+  python_faiss:
+    driver: local
+  python_temp:
+    driver: local
+  python_uploads:
+    driver: local
+  # milvus_data:
+  #   driver: local
+
+# ============================================
+# 网络
+# ============================================
+networks:
+  ai-knowledge-net:
+    driver: bridge

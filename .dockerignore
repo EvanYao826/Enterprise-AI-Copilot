@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Python
+python-service/.venv
+python-service/venv
+python-service/__pycache__
+python-service/**/__pycache__
+python-service/faiss_index
+python-service/temp
+python-service/uploads
+python-service/.pytest_cache
+*.pyc
+*.pyo
+
+# Node
+frontend/node_modules
+frontend/dist
+
+# Java
+target
+*.class
+
+# Docker
+docker-compose.yml
+Dockerfile.*
+.dockerignore
+
+# 环境配置（敏感信息）
+.env
+.env.local
+
+# 其他
+*.md
+LICENSE
+images
+.playwright-mcp
+.trae
+.claude

@@ -12,6 +12,7 @@
 [![Milvus](https://img.shields.io/badge/Milvus-2.4+-00B4D8)](https://milvus.io/)
 [![Redis](https://img.shields.io/badge/Redis-7.0-DC382D?logo=redis)](https://redis.io/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql)](https://mysql.com/)
+[![CI](https://github.com/your-username/ai-knowledge-system/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/ai-knowledge-system/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -272,16 +273,37 @@ run_id: "test-run-001"
 
 ## 🚀 快速启动
 
-### 环境要求
+### 方式一：Docker Compose 一键部署（推荐）
+
+```bash
+# 克隆项目
+git clone https://github.com/your-username/ai-knowledge-system.git
+cd ai-knowledge-system
+
+# 一键启动（首次需要构建镜像，约 5-10 分钟）
+docker-compose up -d
+
+# 访问
+# 前端：http://localhost:80
+# Java 后端：http://localhost:8080
+# Python AI 服务：http://localhost:8000
+```
+
+> 需要安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。首次启动会自动下载 MySQL、Redis 并构建服务镜像。
+
+### 方式二：手动启动
+
+#### 环境要求
 
 - JDK 17+
 - Python 3.9+
 - Node.js 18+
 - MySQL 8.0+
 - Redis 7.0+
-- Milvus 2.4+（可选，也支持 FAISS 本地模式）
 
-### 1. 数据库准备
+> **开发模式零配置可跑**：向量存储默认使用 FAISS（零依赖，无需 Milvus），文档上传默认本地存储（无需七牛云），短信验证码未配置时为模拟模式（验证码输出到控制台）。
+
+#### 1. 数据库准备
 
 ```bash
 mysql -u root -p -e "CREATE DATABASE ai_knowledge_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
@@ -347,7 +369,7 @@ npm run dev
 | Phase 2 | 多级缓存 + 对话上下文 + SSE 流式输出 | ✅ 已完成 |
 | Phase 3 | 五层 Agent 架构 + 全链路追踪 | ✅ 已完成 |
 | Phase 4 | 多 Agent 协作（Router + Retrieval + Ops） | ✅ 已完成 |
-| Phase 5 | Docker Compose 一键部署 | 📋 计划中 |
+| Phase 5 | Docker Compose 一键部署 | ✅ 已完成 |
 | Phase 6 | 接入更多 LLM（OpenAI / Claude / 本地模型） | 📋 计划中 |
 | Phase 7 | Reasoning Agent（归纳推理独立 Agent） | 📋 计划中 |
 | Phase 8 | Memory Agent（记忆压缩 + 主动读写） | 📋 计划中 |
@@ -376,19 +398,18 @@ npm run dev
 1. **Reasoning Agent 缺失**：答案生成目前由 KnowledgeQAAgent 直接调用 LLM，没有独立的归纳推理 Agent，复杂问题的推理能力有限。
 2. **Memory Agent 缺失**：记忆管理目前是 memory_read/write 工具的被动调用，没有独立的记忆压缩 Agent，长对话场景下记忆效率会下降。
 3. **四级记忆体系不完整**：短期记忆（Redis）和会话记忆（MongoDB）已实现，但知识分层记忆和用户个性化记忆尚未实现。
-4. **Rerank 默认关闭**：Retrieval Agent 中 `use_rerank` 和 `use_rewrite` 默认为 False，需要手动开启，且依赖 cohere API。
-5. **无 Docker Compose**：目前需要分别启动 Java / Python / 前端三个服务，缺少一键部署方案。
+4. **Rerank 默认关闭**：Retrieval Agent 中 `use_rerank` 默认为 False，需要手动开启。支持 `simple`（规则排序，零依赖）和 `bge`（语义重排，需下载 ~1.1GB 模型）两种模式，开发环境建议用 `simple`。
+5. ~~**无 Docker Compose**~~ ✅ 已提供 `docker-compose.yml`，支持一键部署。
 6. **前端无 TypeScript**：前端使用纯 JavaScript，没有类型检查，对于大型项目可维护性不足。
-7. **短信验证码为模拟模式**：未配置阿里云短信时，验证码直接输出到控制台，不适合生产环境。
-8. **七牛云为必需依赖**：文档上传功能强依赖七牛云 Kodo，本地开发需要配置或改造为本地存储。
+7. **短信验证码为模拟模式**：未配置阿里云短信时，验证码直接输出到控制台，适合开发调试，不适合生产环境。
+8. ~~**七牛云为必需依赖**~~ ✅ 文档上传已支持本地存储，`upload.dir` 可配置，默认 `./uploads`。
 
 ### 改进方向
 
 - 补充 Reasoning Agent 和 Memory Agent，完善五层架构
-- 提供 Docker Compose 一键部署方案
 - 接入更多 LLM 提供商（OpenAI / Claude / 本地 Ollama）
 - 前端迁移到 TypeScript + 状态管理库
-- 添加单元测试和 CI/CD 流水线
+- 完善单元测试覆盖率
 
 ---
 
