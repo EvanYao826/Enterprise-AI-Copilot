@@ -2,6 +2,7 @@
 
 import pytest
 from workflows.router_agent import RouterAgent, TaskType
+from intent.classifier import IntentType
 
 
 @pytest.fixture

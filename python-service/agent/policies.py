@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, List
 from agent.state import AgentState, AgentStatus, TerminationCondition
-from agent.planner import Planner, IntentType
+from intent.classifier import IntentType
 import logging
 
 logger = logging.getLogger(__name__)

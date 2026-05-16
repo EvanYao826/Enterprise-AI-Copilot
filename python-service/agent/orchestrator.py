@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional, Generator, Callable
 from agent.state import AgentState, AgentStatus, StepType, TerminationCondition
-from agent.planner import Planner, IntentType
+from agent.planner import Planner
+from intent.classifier import IntentType
 from agent.executor import Executor
 from agent.events import EventBus, Event, RunStartedEvent, RunCompletedEvent, RunFailedEvent, StepStartedEvent, StepCompletedEvent, StepFailedEvent
 from agent.policies import policies

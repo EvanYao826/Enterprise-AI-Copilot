@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional, List
 from agent.state import AgentState, AgentStep, StepType, StepStatus
-from agent.planner import Planner, IntentResult, QuestionClassification, RewriteResult, SufficiencyResult
+from agent.planner import Planner, QuestionClassification, RewriteResult, SufficiencyResult
+from intent.classifier import IntentResult
 from tools.registry import tool_registry
 from core.llm import LLMService
 from core.vector_store import vector_store
@@ -71,12 +72,12 @@ class Executor:
         state.add_intermediate_conclusion(
             step_id=step.step_id,
             conclusion_type="intent",
-            content=intent_result.intent,
+            content=intent_result.intent.value,
             confidence=intent_result.confidence
         )
 
         step.complete({
-            "intent": intent_result.intent,
+            "intent": intent_result.intent.value,
             "confidence": intent_result.confidence,
             "reasoning": intent_result.reasoning,
             "requires_clarification": intent_result.requires_clarification
