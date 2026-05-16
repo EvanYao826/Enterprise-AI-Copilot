@@ -373,7 +373,7 @@ npm run dev
 | Phase 4 | 多 Agent 协作（Router + Retrieval + Ops） | ✅ 已完成 |
 | Phase 5 | Docker Compose 一键部署 | ✅ 已完成 |
 | Phase 6 | 意图识别改用LLM（统一分类器 + 关键词Fallback） | ✅ 已完成 |
-| Phase 7 | Reasoning Agent（归纳推理独立 Agent） | 📋 计划中 |
+| Phase 7 | Reasoning Agent（归纳推理独立 Agent） | ✅ 已完成 |
 | Phase 8 | Memory Agent（记忆压缩 + 主动读写） | ✅ 已完成 |
 
 ---
@@ -398,7 +398,7 @@ npm run dev
 
 ### 当前存在的问题
 
-1. **Reasoning Agent 缺失**：答案生成目前由 KnowledgeQAAgent 直接调用 LLM，没有独立的归纳推理 Agent，复杂问题的推理能力有限。
+1. ~~**Reasoning Agent 缺失**~~ ✅ 已实现独立的归纳推理 Agent，支持复杂问题的多步推理和逻辑分析能力。
 2. ~~**Memory Agent 缺失**~~ ✅ 已实现独立的记忆压缩 Agent，支持主动读写和记忆压缩策略，长对话场景下记忆效率显著提升。
 3. ~~**四级记忆体系不完整**~~ ✅ 已完善四级记忆体系：短期记忆（Redis）、会话记忆（MongoDB）、知识分层记忆和用户个性化记忆均已实现。
 4. **Rerank 默认关闭**：Retrieval Agent 中 `use_rerank` 默认为 False，需要手动开启。支持 `simple`（规则排序，零依赖）和 `bge`（语义重排，需下载 ~1.1GB 模型）两种模式，开发环境建议用 `simple`。
