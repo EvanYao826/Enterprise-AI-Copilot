@@ -17,15 +17,24 @@
 
 </div>
 
----
+***
 
 ## 📖 项目简介
 
-AgentCraft 是一个"**前端 + Java 后端 + Python AI 微服务**"的**全栈 RAG 知识库系统**。核心亮点是 **五层可编排 Agent 架构**——Interface、Orchestrator、Tool、Memory、Evaluation 五层解耦，支持意图识别→问题改写→检索→充分性判断→答案生成的完整工作流。系统内置 Router Agent / Retrieval Agent / Ops Agent 多 Agent 协作，通过统一 Tool Registry 管理 AI 能力，支持 runId/traceId 全链路追踪。
+AgentCraft 是一个"**前端 + Java 后端 + Python AI 微服务**"的**全栈 RAG 知识库系统**。用户可上传 PDF、Word、TXT 等文档构建私有知识库，系统自动完成解析、向量化存储，提问时通过语义检索 + Rerank 重排序精准召回相关文档，生成带引用来源的结构化答案。
+
+核心亮点是 **五层可编排 Agent 架构**——Interface、Orchestrator、Tool、Memory、Evaluation 五层解耦，支持意图识别→问题改写→检索→充分性判断→答案生成的完整工作流。系统内置 Router / Retrieval / Ops / Inspection 多 Agent 协作，通过统一 Tool Registry 管理 AI 能力，支持 runId/traceId 全链路追踪、四级记忆体系与 Caffeine + Redis 多级缓存。各模块的设计思路与实现细节详见 [AgentCraft 学习指南](AgentCraft学习指南.md)。
+
+### 适用场景
+
+- **企业知识库**：将内部文档、技术手册、FAQ 等知识资产结构化，员工通过自然语言快速检索，降低知识查找成本。
+- **智能客服**：基于产品文档和历史工单自动回答用户问题，Router Agent 自动识别意图分流至知识问答或闲聊，减轻人工客服压力。
+- **知识运维**：Ops Agent 自动分析知识缺口、问答趋势与用户活跃度，Inspection Agent 检测重复/过期/低质文档，保障知识库质量。
+- **Agent 架构学习与简历展示**：项目涵盖 RAG 全链路、多 Agent 协作、Tool Registry、多级缓存、SSE 流式输出等核心知识点，适合作为 Agent 后端开发学习项目。
 
 **一句话总结**：不只是一个 RAG 问答系统，更是一个 Agent 架构学习项目。
 
----
+***
 
 ## 🏗️ 系统架构
 
@@ -68,7 +77,7 @@ flowchart LR
     Inspection -.-> State
 ```
 
----
+***
 
 ## ✨ 核心亮点
 
@@ -99,13 +108,14 @@ flowchart TD
 ```
 
 **关键代码：**
+
 - `intent/classifier.py` — 统一意图分类器，LLM优先 + 关键词Fallback
 - `agent/orchestrator.py` — 编排器，创建 state、调用 planner、逐步执行
 - `agent/planner.py` — 规划器，调用统一分类器进行意图识别
-- `agent/executor.py` — 执行器，根据 step_type 分发到具体实现
-- `agent/state.py` — 状态管理，run_id / trace_id / step 追踪
+- `agent/executor.py` — 执行器，根据 step\_type 分发到具体实现
+- `agent/state.py` — 状态管理，run\_id / trace\_id / step 追踪
 
----
+***
 
 ### 亮点二：多 Agent 协作机制
 
@@ -155,12 +165,13 @@ flowchart LR
 ```
 
 **关键代码：**
+
 - `intent/classifier.py` — 统一意图分类器，LLM优先 + 关键词Fallback
 - `workflows/router_agent.py` — 4 种任务路由（闲聊/知识问答/管理助手/巡检）
 - `workflows/retrieval_agent.py` — 完整检索链路，可配置开关
 - `workflows/ops_agent.py` — 运营分析，直接查 MySQL，不走 LLM
 
----
+***
 
 ### 亮点三：统一 Tool Registry 工具体系
 
@@ -187,18 +198,18 @@ class ToolRegistry:
 
 **已注册工具列表：**
 
-| 工具名 | 功能 | 超时 | 重试 |
-|--------|------|------|------|
-| knowledge_search | 知识库语义检索 | 30s | 3 |
-| question_rewrite | 问题改写优化 | 30s | 3 |
-| rerank | 语义重排序 | 30s | 3 |
-| citation | 引用来源整合 | 5s | 1 |
-| conversation_memory_read | 对话记忆读取 | 5s | 1 |
-| conversation_memory_write | 对话记忆写入 | 5s | 1 |
-| ocr_extract | OCR 文字提取 | 30s | 3 |
-| doc_summary | 文档摘要生成 | 30s | 3 |
+| 工具名                         | 功能       | 超时  | 重试 |
+| --------------------------- | -------- | --- | -- |
+| knowledge\_search           | 知识库语义检索  | 30s | 3  |
+| question\_rewrite           | 问题改写优化   | 30s | 3  |
+| rerank                      | 语义重排序    | 30s | 3  |
+| citation                    | 引用来源整合   | 5s  | 1  |
+| conversation\_memory\_read  | 对话记忆读取   | 5s  | 1  |
+| conversation\_memory\_write | 对话记忆写入   | 5s  | 1  |
+| ocr\_extract                | OCR 文字提取 | 30s | 3  |
+| doc\_summary                | 文档摘要生成   | 30s | 3  |
 
----
+***
 
 ### 亮点四：全链路可观测
 
@@ -213,65 +224,65 @@ run_id: "test-run-001"
   └─ step 5: answer_generation      → ✅ 生成答案 + 2 个引用来源
 ```
 
----
+***
 
 ## 🛠️ 技术栈
 
 ### 后端
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Java | 17 | 开发语言 |
-| Spring Boot | 3.2.3 | 后端主框架 |
-| MyBatis-Plus | 3.5.x | ORM 持久层 |
-| MySQL | 8.0 | 关系型数据库 |
-| Redis | 7.0 | 分布式缓存、会话管理 |
-| Caffeine | 3.x | 本地缓存，毫秒级响应 |
+| 技术              | 版本    | 用途            |
+| --------------- | ----- | ------------- |
+| Java            | 17    | 开发语言          |
+| Spring Boot     | 3.2.3 | 后端主框架         |
+| MyBatis-Plus    | 3.5.x | ORM 持久层       |
+| MySQL           | 8.0   | 关系型数据库        |
+| Redis           | 7.0   | 分布式缓存、会话管理    |
+| Caffeine        | 3.x   | 本地缓存，毫秒级响应    |
 | Spring Security | 6.2.x | JWT 认证 + 权限控制 |
-| Spring WebFlux | - | SSE 流式响应 |
-| 七牛云 Kodo | - | 文档对象存储 |
+| Spring WebFlux  | -     | SSE 流式响应      |
+| 七牛云 Kodo        | -     | 文档对象存储        |
 
 ### AI 服务
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Python | 3.9+ | AI 服务语言 |
-| FastAPI | 0.110+ | 高性能 Web 框架 |
-| LangChain | 0.1.x | RAG 流程管理 |
-| Milvus | 2.4+ | 向量数据库，语义检索 |
-| 通义千问 | qwen-plus | 大语言模型 |
-| DashScope | - | Embeddings 向量化服务 |
+| 技术        | 版本        | 用途               |
+| --------- | --------- | ---------------- |
+| Python    | 3.9+      | AI 服务语言          |
+| FastAPI   | 0.110+    | 高性能 Web 框架       |
+| LangChain | 0.1.x     | RAG 流程管理         |
+| Milvus    | 2.4+      | 向量数据库，语义检索       |
+| 通义千问      | qwen-plus | 大语言模型            |
+| DashScope | -         | Embeddings 向量化服务 |
 
 ### 前端
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| React | 18.2 | 前端主框架 |
-| Vite | 5.x | 构建工具 |
-| ECharts | 6.x | 数据可视化 |
-| Axios | 1.x | HTTP 客户端 |
+| 技术      | 版本   | 用途       |
+| ------- | ---- | -------- |
+| React   | 18.2 | 前端主框架    |
+| Vite    | 5.x  | 构建工具     |
+| ECharts | 6.x  | 数据可视化    |
+| Axios   | 1.x  | HTTP 客户端 |
 
----
+***
 
 ## 📸 效果展示
 
 ### 用户端
 
-| 智能问答（带参考来源） | 闲聊路由（Router Agent 自动识别） |
-|:---:|:---:|
+|          智能问答（带参考来源）          |  闲聊路由（Router Agent 自动识别） |
+| :---------------------------: | :----------------------: |
 | ![用户端问答](images/用户专业知识问答.png) | ![用户闲聊](images/用户闲聊.png) |
 
 ### 管理端
 
-| 仪表盘 | Agent 执行记录 |
-|:---:|:---:|
+|            仪表盘            |               Agent 执行记录              |
+| :-----------------------: | :-----------------------------------: |
 | ![仪表盘](images/管理端仪表盘.png) | ![Agent执行记录](images/管理端Agent执行记录.png) |
 
-| 知识巡检（Ops Agent） | 自动报表 |
-|:---:|:---:|
+|       知识巡检（Ops Agent）       |             自动报表            |
+| :-------------------------: | :-------------------------: |
 | ![知识巡检](images/管理端知识巡检.png) | ![自动报表](images/管理端自动报表.png) |
 
----
+***
 
 ## 🚀 快速启动
 
@@ -345,7 +356,9 @@ npm run dev
 - 用户端：手机验证码注册登录（未配置短信时为模拟模式）
 - 管理端：`admin` / `admin123`
 
----
+> 项目跑通后，建议按 [学习指南](AgentCraft学习指南.md#5-分阶段学习路线) 的分阶段路线开始学习。
+
+***
 
 ## 📝 简历写法参考
 
@@ -361,62 +374,43 @@ npm run dev
 
 **5. 实现 RAG 全链路知识库系统**，支持多格式文档（PDF/Word/TXT）自动解析、向量化存储至 Milvus，用户提问时通过语义检索 + Rerank 重排序精准召回相关文档，生成带引用来源的结构化答案，支持在线预览/下载。
 
----
-
-## 🗺️ 迭代路线图
-
-| 阶段 | 内容 | 状态 |
-|------|------|------|
-| Phase 1 | RAG 知识库核心链路（上传→解析→向量化→检索→生成） | ✅ 已完成 |
-| Phase 2 | 多级缓存 + 对话上下文 + SSE 流式输出 | ✅ 已完成 |
-| Phase 3 | 五层 Agent 架构 + 全链路追踪 | ✅ 已完成 |
-| Phase 4 | 多 Agent 协作（Router + Retrieval + Ops） | ✅ 已完成 |
-| Phase 5 | Docker Compose 一键部署 | ✅ 已完成 |
-| Phase 6 | 意图识别改用LLM（统一分类器 + 关键词Fallback） | ✅ 已完成 |
-| Phase 7 | Reasoning Agent（归纳推理独立 Agent） | ✅ 已完成 |
-| Phase 8 | Memory Agent（记忆压缩 + 主动读写） | ✅ 已完成 |
-
----
+***
 
 ## 🎓 学完这个项目你能掌握什么
 
-| 能力 | 对应代码 | 面试考点 |
-|------|---------|---------|
-| RAG 全链路设计 | python-service/core/ + tools/ | 向量检索、Embedding、Rerank |
-| Agent 架构设计 | python-service/agent/ | 编排器、规划器、执行器、状态机 |
-| 多 Agent 协作 | python-service/workflows/ | Router 分发、Agent 间通信 |
-| 意图识别 | python-service/intent/classifier.py | LLM意图识别 + 关键词Fallback |
-| 工具注册体系 | python-service/tools/registry.py | 插件化设计、Schema 校验、超时重试 |
-| 多级缓存 | src/.../service/impl/CacheService | Caffeine + Redis、穿透/雪崩防护 |
-| SSE 流式输出 | src/.../controller/ChatController | WebFlux Flux、Server-Sent Events |
-| JWT 认证 | src/.../config/SecurityConfig | Token 生成/校验/刷新 |
-| 向量数据库 | python-service/core/vector_store.py | Milvus 部署、索引、检索、删除 |
+| 能力         | 对应代码                                 | 面试考点                            |
+| ---------- | ------------------------------------ | ------------------------------- |
+| RAG 全链路设计  | python-service/core/ + tools/        | 向量检索、Embedding、Rerank           |
+| Agent 架构设计 | python-service/agent/                | 编排器、规划器、执行器、状态机                 |
+| 多 Agent 协作 | python-service/workflows/            | Router 分发、Agent 间通信             |
+| 意图识别       | python-service/intent/classifier.py  | LLM意图识别 + 关键词Fallback           |
+| 工具注册体系     | python-service/tools/registry.py     | 插件化设计、Schema 校验、超时重试            |
+| 多级缓存       | src/.../service/impl/CacheService    | Caffeine + Redis、穿透/雪崩防护        |
+| SSE 流式输出   | src/.../controller/ChatController    | WebFlux Flux、Server-Sent Events |
+| JWT 认证     | src/.../config/SecurityConfig        | Token 生成/校验/刷新                  |
+| 向量数据库      | python-service/core/vector\_store.py | Milvus 部署、索引、检索、删除              |
 
----
+***
 
 ## ⚠️ 已知问题与改进方向
 
 ### 当前存在的问题
 
-1. ~~**Reasoning Agent 缺失**~~ ✅ 已实现独立的归纳推理 Agent，支持复杂问题的多步推理和逻辑分析能力。
-2. ~~**Memory Agent 缺失**~~ ✅ 已实现独立的记忆压缩 Agent，支持主动读写和记忆压缩策略，长对话场景下记忆效率显著提升。
-3. ~~**四级记忆体系不完整**~~ ✅ 已完善四级记忆体系：短期记忆（Redis）、会话记忆（MongoDB）、知识分层记忆和用户个性化记忆均已实现。
-4. **Rerank 默认关闭**：Retrieval Agent 中 `use_rerank` 默认为 False，需要手动开启。支持 `simple`（规则排序，零依赖）和 `bge`（语义重排，需下载 ~1.1GB 模型）两种模式，开发环境建议用 `simple`。
-5. ~~**无 Docker Compose**~~ ✅ 已提供 `docker-compose.yml`，支持一键部署。
-6. **前端无 TypeScript**：前端使用纯 JavaScript，没有类型检查，对于大型项目可维护性不足。
-7. **短信验证码为模拟模式**：未配置阿里云短信时，验证码直接输出到控制台，适合开发调试，不适合生产环境。
-8. ~~**七牛云为必需依赖**~~ ✅ 文档上传已支持本地存储，`upload.dir` 可配置，默认 `./uploads`。
+1. **Rerank 默认关闭**：Retrieval Agent 中 `use_rerank` 默认为 False，需要手动开启。支持 `simple`（规则排序，零依赖）和 `bge`（语义重排，需下载 \~1.1GB 模型）两种模式，开发环境建议用 `simple`。
+2. **前端无 TypeScript**：前端使用纯 JavaScript，没有类型检查，对于大型项目可维护性不足。
+3. **短信验证码为模拟模式**：未配置阿里云短信时，验证码直接输出到控制台，适合开发调试，不适合生产环境。
 
 ### 改进方向
 
-- 补充 Reasoning Agent，完善五层架构
 - 接入更多 LLM 提供商（OpenAI / Claude / 本地 Ollama）
 - 前端迁移到 TypeScript + 状态管理库
 - 完善单元测试覆盖率
 - 意图识别结果缓存（避免重复调用LLM）
 
----
+***
 
 ## 📄 开源协议
 
 [MIT License](LICENSE) — 可自由用于学习、毕设、简历项目。
+
+详细学习说明文档请查看 [AgentCraft 学习指南](AgentCraft学习指南.md)。
